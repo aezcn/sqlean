@@ -181,7 +181,8 @@ legend{display:contents}
 /* ============================================================
    PANOLAR
    ============================================================ */
-.panes{flex:1 1 auto;display:flex;min-height:0;border-bottom:1px solid var(--rule)}
+.panes{flex:1 1 auto;display:flex;min-height:0;overflow:hidden;
+  border-bottom:1px solid var(--rule)}
 .pane{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1 1 0}
 .pane + .pane{border-left:1px solid var(--rule)}
 .pane-head{
@@ -243,7 +244,9 @@ mark.hit.on{background:var(--stamp);color:#fff}
   border-left:1px solid var(--rule);background:var(--paper);
 }
 .side[hidden]{display:none}
-.side-body{overflow:auto;padding:0 0 14px}
+/* flex:1 + min-height:0 olmadan içerik kutusundan taşıp durum çubuğunun
+   üstüne biniyor — esnek kutuda içerik altı daralma ancak böyle mümkün */
+.side-body{flex:1 1 auto;min-height:0;overflow:auto;padding:0 0 14px}
 .side-sec{border-bottom:1px solid var(--rule-soft);padding:11px 13px}
 .side-sec h3{
   margin:0 0 8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
@@ -278,7 +281,38 @@ mark.hit.on{background:var(--stamp);color:#fff}
 .chip{
   font-family:var(--mono);font-size:11px;background:var(--sunken);
   border:1px solid var(--rule-soft);border-radius:2px;padding:2px 6px;
+  display:inline-flex;align-items:center;gap:5px;
 }
+/* Kalıcı tablo: düz çerçeve, dolu işaret — varsayılan görünüm */
+.chip::before{
+  content:"";width:6px;height:6px;flex:0 0 auto;border-radius:1px;
+  background:var(--ink-soft);
+}
+/* Geçici nesneler: kesikli çerçeve, içi boş işaret */
+.chip.gecici,.chip.genel,.chip.degisken{
+  border-style:dashed;border-color:var(--warn);color:var(--warn);
+  background:var(--warn-bg);
+}
+.chip.gecici::before,.chip.genel::before,.chip.degisken::before{
+  background:transparent;border:1px solid var(--warn);
+}
+.chip.genel::before{border-radius:50%}
+.chip.degisken::before{transform:rotate(45deg)}
+/* CTE: sorgunun kendi içinde tanımlı, diskte karşılığı yok */
+.chip.cte{
+  border-style:dotted;border-color:var(--func);color:var(--func);
+  background:transparent;font-style:italic;
+}
+.chip.cte::before{background:transparent;border:1px solid var(--func);border-radius:50%}
+.legend{
+  display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:8px;
+  font-size:10px;color:var(--ink-faint);line-height:1.4;
+}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:6px;height:6px;border-radius:1px;background:var(--ink-soft);
+  flex:0 0 auto;font-style:normal}
+.legend i.gecici{background:transparent;border:1px solid var(--warn)}
+.legend i.cte{background:transparent;border:1px solid var(--func);border-radius:50%}
 .empty{font-size:12px;color:var(--ink-faint);font-style:italic}
 
 /* ============================================================
@@ -437,6 +471,13 @@ mark.hit.on{background:var(--stamp);color:#fff}
 @media (max-width:1100px){
   .side{flex-basis:260px}
 }
+/* Çok kısa pencerelerde (ayar çubukları tek başına ekranı doldurduğunda)
+   uygulama kabuğu yerine sayfa kaydırmasına düş: durum çubuğu kırpılmasın */
+@media (max-height:520px){
+  body{overflow:auto}
+  .panes{min-height:260px}
+}
+
 /* Dar ekranda gizlilik damgası daralsın — başlık satırını daha az bölsün */
 @media (max-width:760px){
   .stamp{letter-spacing:.05em;padding:2px 6px;font-size:9px}
@@ -444,7 +485,8 @@ mark.hit.on{background:var(--stamp);color:#fff}
 @media (max-width:860px){
   .panes{flex-direction:column}
   .pane + .pane{border-left:0;border-top:1px solid var(--rule)}
-  .side{flex-basis:auto;max-height:38vh;border-left:0;border-top:1px solid var(--rule)}
+  .side{flex:0 1 auto;max-height:38vh;min-height:0;border-left:0;
+    border-top:1px solid var(--rule)}
   .brand .sub{display:none}
 }
 
@@ -636,7 +678,7 @@ mark.hit.on{background:var(--stamp);color:#fff}
       </div>
       <div class="side-sec">
         <h3>Tablolar</h3>
-        <div class="chips" id="anTables"></div>
+        <div id="anTables"></div>
       </div>
     </div>
   </aside>
@@ -1630,7 +1672,14 @@ window.SQL = window.SQL || {};
 
       if (t.type === 'punc') {
         if (t.value === '(') { d++; continue; }
-        if (t.value === ')') { d--; continue; }
+        if (t.value === ')') {
+          d--;
+          /* Parantez grubu kapandığında önceki keyword artık bitişik değildir.
+             Bunu sıfırlamazsak "FROM t WITH (NOLOCK)" ipucundaki WITH, sonraki
+             ifadenin ayrılmasını engelliyor. */
+          if (d === 0) prevKw = null;
+          continue;
+        }
         if (t.value === ';' && d === 0) return i;
         if (t.value === ',' && d === 0) { prevKw = ','; continue; }
         continue;
@@ -2581,6 +2630,7 @@ window.SQL = window.SQL || {};
       notes: [], outline: [], tables: []
     };
     var seenTable = new Set();
+    var cteAdlari = new Set();
     var maxDepth = 0;
 
     A.stats.satir = text ? text.split('\n').length : 0;
@@ -2595,12 +2645,30 @@ window.SQL = window.SQL || {};
       A.notes.push({ level: level, line: line, text: text });
     }
 
+    /** Köşeli parantez / tırnak soyulmuş, karşılaştırmaya hazır ad */
+    function sadeAd(v) {
+      return String(v || '').replace(/^\[|\]$/g, '').replace(/^"|"$/g, '').toLowerCase();
+    }
+
+    /**
+     * Tablo adını türüne ayırır. Geçici nesneler sorgunun ömrüyle sınırlıdır;
+     * kalıcı tablolarla karıştırılmamaları gerekir.
+     */
+    function tabloTuru(ad) {
+      var t = sadeAd(ad);
+      if (/^##/.test(t)) return 'genel';      /* ##global geçici tablo   */
+      if (/^#/.test(t)) return 'gecici';      /* #yerel geçici tablo     */
+      if (/^@/.test(t)) return 'degisken';    /* @tablo değişkeni        */
+      if (cteAdlari.has(t)) return 'cte';     /* bu sorguda tanımlı CTE  */
+      return 'kalici';
+    }
+
     function addTable(name, line) {
       if (!name) return;
-      var key = name.toLowerCase();
+      var key = sadeAd(name);
       if (seenTable.has(key)) return;
       seenTable.add(key);
-      A.tables.push({ ad: name, line: line });
+      A.tables.push({ ad: name, line: line, tur: tabloTuru(name) });
     }
 
     function outline(label, line, depth, kind) {
@@ -2652,8 +2720,12 @@ window.SQL = window.SQL || {};
         if (n.type === 'Paren') {
           if (n.kind === 'sub') {
             if (depth + 1 > maxDepth) maxDepth = depth + 1;
-            outline('alt sorgu', n.line, depth + 1, 'sub');
-            walkStmts(n.stmts, depth + 1);
+            /* Alt sorgu için ayrı bir satır açmıyoruz: içindeki ifadenin
+               kendi etiketi zaten daha bilgilendirici. Yalnızca ifade hiç
+               etiket üretmezse yedek satır yazılır. */
+            var onceki = A.outline.length;
+            walkStmts(n.stmts, depth + 1, 'sub');
+            if (A.outline.length === onceki) outline('alt sorgu', n.line, depth + 1, 'sub');
           } else {
             walkExpr(n.body || [], depth, ctx);
           }
@@ -2690,14 +2762,6 @@ window.SQL = window.SQL || {};
           }
         }
 
-        /* Tablo ipucu NOLOCK — anahtar kelime olduğu için Kw düğümü olarak gelir */
-        if ((n.type === 'Kw' && (n.kw === 'NOLOCK' || n.kw === 'READUNCOMMITTED')) ||
-            (n.type === 'Tok' && n.t.type === 'word' &&
-             (n.t.up === 'NOLOCK' || n.t.up === 'READUNCOMMITTED'))) {
-          note('info', n.line,
-            'NOLOCK: kesinleşmemiş (dirty) veri okunabilir, satırlar atlanabilir veya ' +
-            'iki kez gelebilir.');
-        }
       }
     }
 
@@ -2810,22 +2874,35 @@ window.SQL = window.SQL || {};
 
     /* ---------- İfade / blok düzeyi ---------- */
 
-    function walkStmts(stmts, depth) {
-      stmts.forEach(function (s) { walkStmt(s, depth); });
+    function walkStmts(stmts, depth, tur) {
+      stmts.forEach(function (s) { walkStmt(s, depth, tur); });
     }
 
-    function walkStmt(s, depth) {
+    /** Yan tümce listesinin ilk gerçek satırı */
+    function ilkSatir(clauses) {
+      for (var i = 0; i < clauses.length; i++) {
+        if (clauses[i] && clauses[i].line) return clauses[i].line;
+      }
+      return null;
+    }
+
+    function walkStmt(s, depth, tur) {
       if (!s) return;
       switch (s.type) {
         case 'Stmt': {
           if (depth === 0) A.stats.ifade++;
           var lbl = stmtLabel(s.body);
-          if (lbl) outline(lbl, s.line, depth, 'stmt');
+          if (lbl) outline(lbl, ilkSatir(s.body) || s.line, depth, tur || 'stmt');
           walkClauses(s.body, depth);
           break;
         }
         case 'Cte': {
           if (depth === 0) A.stats.ifade++;
+          /* CTE adları tablo listesinde ayrı gösterilecek; hepsi önden kaydedilir
+             ki zincirin ilerisindeki gövdeler de doğru sınıflansın. */
+          s.items.forEach(function (it) {
+            if (it.name) cteAdlari.add(sadeAd(it.name.value));
+          });
           s.items.forEach(function (it) {
             A.stats.cte++;
             outline('CTE · ' + (it.name ? it.name.value : '?'), it.line, depth, 'cte');
@@ -2833,7 +2910,8 @@ window.SQL = window.SQL || {};
           });
           if (s.main && s.main.length) {
             var l2 = stmtLabel(s.main);
-            if (l2) outline(l2, s.line, depth, 'stmt');
+            /* Ana sorgunun satırı WITH'in değil, kendi ilk yan tümcesinin satırıdır */
+            if (l2) outline(l2, ilkSatir(s.main) || s.line, depth, tur || 'stmt');
             walkClauses(s.main, depth);
           }
           break;
@@ -3358,18 +3436,62 @@ window.App = window.App || {};
       ol.appendChild(li);
     });
 
+    renderTablolar(a.tables);
+  }
+
+  var TUR_ACIK = {
+    kalici:    'Kalıcı tablo',
+    gecici:    'Geçici tablo (#) — yalnızca bu oturumda var',
+    genel:     'Genel geçici tablo (##) — tüm oturumlarda görünür',
+    degisken:  'Tablo değişkeni (@) — yalnızca bu toplu iş içinde var',
+    cte:       'CTE — bu sorguda tanımlı, diskte karşılığı yok'
+  };
+
+  function renderTablolar(tablolar) {
     var tb = $('anTables');
     tb.innerHTML = '';
-    if (!a.tables.length) {
+
+    if (!tablolar.length) {
       var em = document.createElement('span');
       em.className = 'empty'; em.textContent = '—';
       tb.appendChild(em);
+      return;
     }
-    a.tables.forEach(function (t) {
+
+    var kutu = document.createElement('div');
+    kutu.className = 'chips';
+    var turler = {};
+
+    tablolar.forEach(function (t) {
+      var tur = t.tur || 'kalici';
+      turler[tur] = true;
       var sp = document.createElement('span');
-      sp.className = 'chip'; sp.textContent = t.ad;
-      tb.appendChild(sp);
+      sp.className = 'chip' + (tur === 'kalici' ? '' : ' ' + tur);
+      sp.textContent = t.ad;
+      sp.title = TUR_ACIK[tur] || '';
+      kutu.appendChild(sp);
     });
+    tb.appendChild(kutu);
+
+    /* Gösterge yalnızca ayırt edilecek bir şey varsa çizilir */
+    var geciciVar = turler.gecici || turler.genel || turler.degisken;
+    if (!geciciVar && !turler.cte) return;
+
+    var lg = document.createElement('div');
+    lg.className = 'legend';
+    if (turler.kalici) lg.appendChild(gosterge('', 'kalıcı tablo'));
+    if (geciciVar) lg.appendChild(gosterge('gecici', 'geçici tablo'));
+    if (turler.cte) lg.appendChild(gosterge('cte', 'CTE'));
+    tb.appendChild(lg);
+  }
+
+  function gosterge(sinif, metin) {
+    var s = document.createElement('span');
+    var i = document.createElement('i');
+    if (sinif) i.className = sinif;
+    s.appendChild(i);
+    s.appendChild(document.createTextNode(metin));
+    return s;
   }
 
   /** Çıktı panosunda ilgili satıra kaydırır ve cetvelde işaretler */

@@ -174,25 +174,45 @@
     window.__DONE__ = true;
   }
 
-  frame.addEventListener('load', function () {
-    setTimeout(function () {
-      var SQL = frame.contentWindow.SQL;
-      if (!SQL || !SQL.Print) {
-        sum.className = 'sum bad';
-        sum.textContent = 'Motor yüklenemedi — index.html içindeki script hatalarına bakın.';
-        window.__DONE__ = true;
-        window.__RESULT__ = { pass: 0, fail: -1, error: 'SQL yok' };
-        return;
-      }
-      try { run(SQL); }
-      catch (e) {
-        sum.className = 'sum bad';
-        sum.textContent = 'Koşucu hatası: ' + e.message;
-        window.__DONE__ = true;
-        window.__RESULT__ = { error: e.message + '\n' + e.stack };
-      }
-    }, 60);
-  });
+  var baslatildi = false;
+
+  function baslat() {
+    if (baslatildi) return;
+    baslatildi = true;
+    var SQL = frame.contentWindow && frame.contentWindow.SQL;
+    if (!SQL || !SQL.Print) {
+      sum.className = 'sum bad';
+      sum.textContent = 'Motor yüklenemedi — index.html içindeki script hatalarına bakın.';
+      window.__DONE__ = true;
+      window.__RESULT__ = { pass: 0, fail: -1, error: 'SQL yok' };
+      return;
+    }
+    try { run(SQL); }
+    catch (e) {
+      sum.className = 'sum bad';
+      sum.textContent = 'Koşucu hatası: ' + e.message;
+      window.__DONE__ = true;
+      window.__RESULT__ = { error: e.message + '\n' + e.stack };
+    }
+  }
+
+  /* iframe, dinleyici bağlanmadan önce yüklenmiş olabilir (önbellek);
+     bu durumda load olayı hiç gelmez, o yüzden durumu ayrıca yokluyoruz. */
+  frame.addEventListener('load', function () { setTimeout(baslat, 60); });
+
+  (function bekle(kalan) {
+    if (baslatildi) return;
+    var d = frame.contentDocument;
+    if (d && d.readyState === 'complete' && frame.contentWindow.SQL) { baslat(); return; }
+    if (kalan <= 0) {
+      sum.className = 'sum bad';
+      sum.textContent = 'index.html yüklenemedi (zaman aşımı).';
+      window.__DONE__ = true;
+      window.__RESULT__ = { error: 'iframe zaman aşımı' };
+      return;
+    }
+    setTimeout(function () { bekle(kalan - 1); }, 100);
+  })(100);
 })();
 </script>
 </body>
