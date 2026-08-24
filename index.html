@@ -456,6 +456,57 @@ mark.hit.on{background:var(--stamp);color:#fff}
 .diff-line.del{background:var(--danger-bg);color:var(--danger)}
 .diff-line.same{color:var(--ink-soft)}
 
+/* ============================================================
+   ŞEMA GÖRSELLEŞTİRME
+   ============================================================ */
+.modal.tam{padding:3vh 12px 12px}
+.modal-box.viz{
+  max-width:min(1180px,96vw);width:100%;
+  height:min(880px,92vh);max-height:92vh;
+}
+.viz-bar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;
+  border-bottom:1px solid var(--rule);background:var(--sheet);flex:0 0 auto;
+}
+.viz-bar .btn{padding:4px 9px;font-size:11px}
+.viz-canvas{
+  flex:1 1 auto;min-height:0;position:relative;overflow:hidden;
+  background:var(--sheet);
+  background-image:radial-gradient(var(--rule-soft) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+.viz-canvas svg{display:block;width:100%;height:100%;touch-action:none;
+  font-family:var(--ui);cursor:grab}
+.viz-canvas svg.tutuluyor{cursor:grabbing}
+.viz-bos{
+  position:absolute;inset:0;display:grid;place-items:center;text-align:center;
+  padding:24px;color:var(--ink-soft);font-size:13px;line-height:1.6;
+}
+.viz-legend{
+  display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 14px;flex:0 0 auto;
+  border-top:1px solid var(--rule);background:var(--paper);
+  font-size:10px;color:var(--ink-soft);
+}
+.viz-legend span{display:inline-flex;align-items:center;gap:6px}
+.viz-legend svg{width:26px;height:10px;overflow:visible;flex:0 0 auto}
+.viz-detay{
+  font-size:11px;color:var(--ink-soft);font-family:var(--mono);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;
+}
+.viz-detay b{font-family:var(--ui);color:var(--ink);font-weight:600}
+
+/* düğüm ve kenar etkileşimi — sunum öznitelikleri dışa aktarım için,
+   bu sınıflar yalnızca ekranda geçerli */
+.vz-node{cursor:pointer}
+.vz-node rect{transition:filter .12s}
+.vz-node:hover rect{filter:brightness(.96)}
+[data-theme="dark"] .vz-node:hover rect{filter:brightness(1.25)}
+.vz-sonuk{opacity:.16}
+.vz-secili rect{stroke-width:2.5}
+.vz-kenar-etiket{font-family:var(--mono);pointer-events:none}
+.vz-kenar{pointer-events:stroke}
+.vz-kenar:hover{stroke-width:3}
+
 /* kısayol tablosu */
 .keys{width:100%;border-collapse:collapse;font-size:12px}
 .keys td{padding:5px 8px;border-bottom:1px solid var(--rule-soft)}
@@ -605,6 +656,7 @@ mark.hit.on{background:var(--stamp);color:#fff}
   <span class="sep"></span>
   <button class="btn" id="btnLib">Kütüphane</button>
   <button class="btn" id="btnTools">Araçlar</button>
+  <button class="btn" id="btnViz">Görselleştir</button>
   <span class="sep"></span>
   <button class="btn" id="btnOpen">Dosya aç</button>
   <button class="btn" id="btnSample">Örnek</button>
@@ -766,6 +818,31 @@ mark.hit.on{background:var(--stamp);color:#fff}
   </div>
 </div>
 
+<!-- ==================== ŞEMA ==================== -->
+<div class="modal tam" id="vizModal" hidden role="dialog" aria-modal="true"
+     aria-labelledby="vizTitle">
+  <div class="modal-box viz">
+    <div class="modal-head">
+      <h2 id="vizTitle">Şema</h2>
+      <span class="viz-detay" id="vizOzet"></span>
+      <button class="x" data-close="vizModal" aria-label="Kapat">&times;</button>
+    </div>
+    <div class="viz-bar">
+      <label class="chk"><input type="checkbox" id="vizWhere" checked> WHERE ilişkileri</label>
+      <label class="chk"><input type="checkbox" id="vizKosul" checked> Koşulları yaz</label>
+      <label class="chk"><input type="checkbox" id="vizAkis" checked> Besleme okları</label>
+      <span class="sep"></span>
+      <button class="btn" id="vizSigdir">Sığdır</button>
+      <button class="btn" id="vizYeniden">Yerleşimi sıfırla</button>
+      <button class="btn" id="vizSvg">SVG indir</button>
+      <span class="spacer"></span>
+      <span class="viz-detay" id="vizDetay"></span>
+    </div>
+    <div class="viz-canvas" id="vizCanvas"></div>
+    <div class="viz-legend" id="vizLegend"></div>
+  </div>
+</div>
+
 <!-- ==================== KISAYOLLAR ==================== -->
 <div class="modal" id="helpModal" hidden role="dialog" aria-modal="true"
      aria-labelledby="helpTitle">
@@ -787,6 +864,7 @@ mark.hit.on{background:var(--stamp);color:#fff}
           <tr><td><kbd>Ctrl</kbd> <kbd>1…9</kbd></td><td>Sekmeye geç</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>C</kbd></td><td>Çıktıyı kopyala</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>B</kbd></td><td>Analiz panelini aç/kapat</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>G</kbd></td><td>Şemayı görselleştir</td></tr>
           <tr><td><kbd>Ctrl</kbd> <kbd>/</kbd></td><td>Bu pencere</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Açık pencereyi kapat</td></tr>
         </tbody>
@@ -2970,6 +3048,443 @@ window.SQL = window.SQL || {};
 </script>
 
 <!-- ============================================================
+     SQL.Graph — TABLO / JOIN İLİŞKİ ÇIKARIMI
+     Sorguyu bir çizgeye çevirir. Kenarların hangi tablolar arasında
+     olduğu, ON ve WHERE koşullarındaki takma adlar çözülerek bulunur
+     — "bir sonraki tabloya bağlanır" varsayımı yanlış sonuç verir.
+     Takma ad tabloları kapsam zinciri hâlinde tutulur; böylece alt
+     sorgulardaki korelasyonlar dıştaki tabloya doğru bağlanır.
+     ============================================================ -->
+<script>
+(function (SQL) {
+  'use strict';
+
+  var Parse = SQL.Parse;
+
+  /* İlişki sayılan karşılaştırmalar — eşitlik dışındakiler birleştirme değildir */
+  var ESIT = new Set(['=']);
+
+  var JOIN_KISA = {
+    'JOIN': 'INNER', 'INNER JOIN': 'INNER', 'INNER HASH JOIN': 'INNER',
+    'LEFT JOIN': 'LEFT', 'LEFT OUTER JOIN': 'LEFT',
+    'RIGHT JOIN': 'RIGHT', 'RIGHT OUTER JOIN': 'RIGHT',
+    'FULL JOIN': 'FULL', 'FULL OUTER JOIN': 'FULL',
+    'CROSS JOIN': 'CROSS', 'CROSS APPLY': 'APPLY', 'OUTER APPLY': 'APPLY'
+  };
+
+  function sade(v) {
+    return String(v || '').replace(/^\[|\]$/g, '').replace(/^"|"$/g, '');
+  }
+  function anahtar(v) { return sade(v).toLowerCase(); }
+
+  /** Adın son parçası: dbo.musteri → musteri */
+  function kisaAd(v) {
+    var p = String(v).split('.');
+    return sade(p[p.length - 1]);
+  }
+
+  function tabloTuru(ad) {
+    var t = anahtar(ad);
+    if (/^##/.test(t)) return 'genel';
+    if (/^#/.test(t)) return 'gecici';
+    if (/^@/.test(t)) return 'degisken';
+    return 'kalici';
+  }
+
+  /* ---------- Düğüm listesinden ad okuma ---------- */
+
+  function adOku(nodes, i) {
+    var parcalar = [], j = i;
+    while (j < nodes.length) {
+      var n = nodes[j];
+      if (n.type === 'Comment') { j++; continue; }
+      if (n.type !== 'Tok') break;
+      var t = n.t;
+      if (t.type === 'word' || t.type === 'ident' || t.type === 'var') {
+        if (parcalar.length && parcalar[parcalar.length - 1] !== '.') break;
+        parcalar.push(t.value); j++; continue;
+      }
+      if (t.type === 'punc' && t.value === '.') { parcalar.push('.'); j++; continue; }
+      break;
+    }
+    return parcalar.length ? { ad: parcalar.join(''), next: j } : null;
+  }
+
+  /* ---------- Çizge kurucusu ---------- */
+
+  function build(tree) {
+    var G = { nodes: [], edges: [], uyari: [] };
+    var sayacN = 0, sayacE = 0;
+    var kenarAnahtar = Object.create(null);
+
+    function Kapsam(ad, ust) {
+      return { ad: ad, ust: ust, adlar: Object.create(null), dugumler: [] };
+    }
+
+    function dugumEkle(kapsam, o) {
+      var d = {
+        id: 'n' + (sayacN++), ad: o.ad, kisa: o.kisa || kisaAd(o.ad),
+        alias: o.alias || null, tur: o.tur || 'kalici',
+        line: o.line || null, kapsam: kapsam.ad
+      };
+      G.nodes.push(d);
+      kapsam.dugumler.push(d);
+      return d;
+    }
+
+    function adKaydet(kapsam, ad, dugum) {
+      if (!ad) return;
+      var k = anahtar(ad);
+      if (!(k in kapsam.adlar)) kapsam.adlar[k] = dugum;
+    }
+
+    /** Takma adı kapsam zincirinde yukarı doğru arar */
+    function coz(kapsam, ad) {
+      var k = anahtar(ad), c = kapsam;
+      while (c) {
+        if (k in c.adlar) return c.adlar[k];
+        c = c.ust;
+      }
+      return null;
+    }
+
+    function kenarEkle(a, b, o) {
+      if (!a || !b || a === b) return null;
+      var yon = a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id;
+      var k = yon + '|' + (o.tur || '');
+      if (kenarAnahtar[k]) {
+        /* Aynı çift arasında ikinci bir koşul: mevcut kenara ekle */
+        var v = kenarAnahtar[k];
+        if (o.kosul && v.kosullar.indexOf(o.kosul) < 0) v.kosullar.push(o.kosul);
+        return v;
+      }
+      var e = {
+        id: 'e' + (sayacE++), a: a.id, b: b.id,
+        tur: o.tur || 'join', joinTur: o.joinTur || null,
+        kosullar: o.kosul ? [o.kosul] : [],
+        line: o.line || null, yonlu: !!o.yonlu
+      };
+      G.edges.push(e);
+      kenarAnahtar[k] = e;
+      return e;
+    }
+
+    /* ---------- Koşullardan ilişki çiftleri ---------- */
+
+    /**
+     * Bir koşul düğüm listesinde "a.x = b.y" kalıplarını bulur.
+     * Yalnızca iki tarafı da nitelikli olan eşitlikler ilişki sayılır.
+     */
+    function ciftler(nodes) {
+      var out = [];
+      Parse.splitCond(nodes).forEach(function (parca) {
+        var ns = parca.nodes.filter(function (n) { return n.type !== 'Comment'; });
+        /* eşitlik konumunu bul */
+        for (var i = 0; i < ns.length; i++) {
+          var n = ns[i];
+          if (n.type !== 'Tok' || n.t.type !== 'op' || !ESIT.has(n.t.value)) continue;
+          var sol = nitelikli(ns.slice(0, i));
+          var sag = nitelikli(ns.slice(i + 1));
+          if (sol && sag) out.push({ sol: sol, sag: sag });
+          break;
+        }
+      });
+      return out;
+    }
+
+    /** Tam olarak "alias.kolon" biçiminde mi? Fonksiyon sarmalıysa ilişki sayılmaz. */
+    function nitelikli(ns) {
+      var t = ns.filter(function (n) { return n.type !== 'Comment'; });
+      if (t.length !== 3) return null;
+      if (t[0].type !== 'Tok' || t[1].type !== 'Tok' || t[2].type !== 'Tok') return null;
+      var a = t[0].t, nokta = t[1].t, b = t[2].t;
+      if (nokta.type !== 'punc' || nokta.value !== '.') return null;
+      var adTip = function (x) {
+        return x.type === 'word' || x.type === 'ident' || x.type === 'var';
+      };
+      if (!adTip(a) || !adTip(b)) return null;
+      return { alias: a.value, kolon: b.value };
+    }
+
+    /* ---------- FROM / JOIN kaynakları ---------- */
+
+    /**
+     * Bir kaynak öğesini çözer: tablo adı + takma ad, ya da türetilmiş tablo.
+     */
+    function kaynakCoz(kapsam, item, line, etiket) {
+      var ns = item.filter(function (n) { return n.type !== 'Comment'; });
+      if (!ns.length) return null;
+
+      /* Türetilmiş tablo: (SELECT …) AS x */
+      if (ns[0].type === 'Paren' && ns[0].kind === 'sub') {
+        var alias = aliasOku(ns, 1);
+        var d = dugumEkle(kapsam, {
+          ad: alias || 'alt sorgu', kisa: alias || 'alt sorgu',
+          alias: alias, tur: 'turetilmis', line: line
+        });
+        adKaydet(kapsam, alias, d);
+        var ic = Kapsam(etiket || 'türetilmiş', kapsam);
+        ifadeleriGez(ns[0].stmts, ic);
+        beslemeEkle(ic, d);
+        return d;
+      }
+
+      var okundu = adOku(ns, 0);
+      if (!okundu) return null;
+      var alias2 = aliasOku(ns, okundu.next);
+      var varolan = coz(kapsam, okundu.ad);
+
+      /* CTE'ye yapılan atıf yeni düğüm açmaz, mevcut CTE düğümüne bağlanır */
+      if (varolan && varolan.tur === 'cte') {
+        if (alias2) adKaydet(kapsam, alias2, varolan);
+        return varolan;
+      }
+
+      var d2 = dugumEkle(kapsam, {
+        ad: okundu.ad, alias: alias2, tur: tabloTuru(okundu.ad), line: line
+      });
+      adKaydet(kapsam, okundu.ad, d2);
+      adKaydet(kapsam, kisaAd(okundu.ad), d2);
+      if (alias2) adKaydet(kapsam, alias2, d2);
+      return d2;
+    }
+
+    /** AS'li ya da AS'siz takma adı okur; WITH (…) ipucunu atlar */
+    function aliasOku(ns, i) {
+      var j = i;
+      while (j < ns.length && ns[j].type === 'Comment') j++;
+      if (j < ns.length && ns[j].type === 'Kw' && ns[j].kw === 'AS') j++;
+      while (j < ns.length && ns[j].type === 'Comment') j++;
+      var n = ns[j];
+      if (!n || n.type !== 'Tok') return null;
+      var t = n.t;
+      if (t.type !== 'word' && t.type !== 'ident') return null;
+      if (SQL.Lex.KEYWORDS.has(t.up)) return null;
+      return t.value;
+    }
+
+    /* ---------- Kapsam gezintisi ---------- */
+
+    function beslemeEkle(icKapsam, hedef) {
+      icKapsam.dugumler.forEach(function (d) {
+        kenarEkle(d, hedef, { tur: 'besler', yonlu: true });
+      });
+    }
+
+    /* Kaynak (tablo okunan) ve hedef (tablo yazılan) yan tümceler */
+    var KAYNAK_KW = { 'FROM': 1, 'USING': 1 };
+    var HEDEF_KW = {
+      'UPDATE': 'degistir', 'DELETE FROM': 'degistir', 'MERGE INTO': 'degistir',
+      'INSERT INTO': 'yazilir', 'INTO': 'yazilir'
+    };
+
+    function yanTumceGez(clauses, kapsam) {
+      var joinler = [], sonKaynak = null, kaynaklar = [];
+      var mergeKosul = null, hedefler = [];
+
+      /* 1) Önce okunan kaynaklar: koşullar çözülmeden takma adlar hazır olmalı.
+            Hedefler sonra gelir, çünkü "UPDATE m ... FROM musteri m" yazımında
+            hedef aslında FROM'daki tablonun takma adıdır. */
+      clauses.forEach(function (c) {
+        if (c.type === 'Clause' && c.kw === 'FROM') {
+          Parse.splitList(c.body).forEach(function (item) {
+            var d = kaynakCoz(kapsam, item, c.line, 'alt sorgu');
+            if (d) { sonKaynak = d; kaynaklar.push(d); }
+          });
+        } else if (c.type === 'Join') {
+          var d2 = kaynakCoz(kapsam, c.source, c.line, 'alt sorgu');
+          joinler.push({ c: c, dugum: d2, onceki: sonKaynak });
+          if (d2) { sonKaynak = d2; kaynaklar.push(d2); }
+        } else if (c.type === 'Clause' && c.kw === 'USING') {
+          /* MERGE … USING <kaynak> [AS k] ON <koşul> */
+          var onIdx = -1;
+          for (var q = 0; q < c.body.length; q++) {
+            if (c.body[q].type === 'Kw' && c.body[q].kw === 'ON') { onIdx = q; break; }
+          }
+          var kismi = onIdx < 0 ? c.body : c.body.slice(0, onIdx);
+          if (onIdx >= 0) mergeKosul = { nodes: c.body.slice(onIdx + 1), line: c.line };
+          var d3 = kaynakCoz(kapsam, kismi, c.line, 'alt sorgu');
+          if (d3) { sonKaynak = d3; kaynaklar.push(d3); }
+        }
+      });
+
+      /* 1b) Hedefler: zaten çözülebiliyorsa yeni düğüm açılmaz */
+      clauses.forEach(function (c) {
+        if (c.type !== 'Clause' || !HEDEF_KW[c.kw]) return;
+        Parse.splitList(c.body).forEach(function (item) {
+          var okundu = adOku(item.filter(function (n) { return n.type !== 'Comment'; }), 0);
+          var mevcut = okundu ? coz(kapsam, okundu.ad) : null;
+          var d = mevcut || kaynakCoz(kapsam, item, c.line, 'alt sorgu');
+          if (!d) return;
+          hedefler.push({ dugum: d, kip: HEDEF_KW[c.kw] });
+        });
+      });
+
+      /* 1c) INSERT INTO / SELECT INTO: okunan tablolardan hedefe veri akar */
+      hedefler.forEach(function (h) {
+        if (h.kip !== 'yazilir') return;
+        kaynaklar.forEach(function (k) {
+          kenarEkle(k, h.dugum, { tur: 'besler', yonlu: true });
+        });
+      });
+
+      /* 1d) MERGE eşleştirme koşulu */
+      if (mergeKosul) {
+        ciftler(mergeKosul.nodes).forEach(function (ci) {
+          var A = coz(kapsam, ci.sol.alias), B = coz(kapsam, ci.sag.alias);
+          if (!A || !B || A === B) return;
+          kenarEkle(A, B, {
+            tur: 'join', joinTur: 'MERGE', line: mergeKosul.line, kosul: etiketle(ci)
+          });
+        });
+      }
+
+      /* 2) JOIN koşulları */
+      joinler.forEach(function (j) {
+        var tip = JOIN_KISA[j.c.kw] || 'JOIN';
+        if (!j.c.on) {
+          /* ON yok: CROSS/APPLY ya da eksik koşul — zincirdeki öncekine bağlanır */
+          if (j.dugum && j.onceki) {
+            kenarEkle(j.onceki, j.dugum, {
+              tur: tip === 'CROSS' || tip === 'APPLY' ? 'capraz' : 'kosulsuz',
+              joinTur: tip, line: j.c.line
+            });
+          }
+          return;
+        }
+        var bulundu = 0;
+        ciftler(j.c.on).forEach(function (ci) {
+          var A = coz(kapsam, ci.sol.alias), B = coz(kapsam, ci.sag.alias);
+          if (!A || !B || A === B) return;
+          bulundu++;
+          kenarEkle(A, B, {
+            tur: 'join', joinTur: tip, line: j.c.line,
+            kosul: etiketle(ci)
+          });
+        });
+        /* Koşul çözülemediyse (fonksiyon, sabit vb.) zincir bağlantısına düş */
+        if (!bulundu && j.dugum && j.onceki) {
+          kenarEkle(j.onceki, j.dugum, { tur: 'join', joinTur: tip, line: j.c.line });
+        }
+      });
+
+      /* 3) WHERE / HAVING: eski usul örtük birleştirmeler ve korelasyonlar */
+      clauses.forEach(function (c) {
+        if (c.type !== 'Clause' || !Parse.COND_CLAUSE.has(c.kw)) return;
+        ciftler(c.body).forEach(function (ci) {
+          var A = coz(kapsam, ci.sol.alias), B = coz(kapsam, ci.sag.alias);
+          if (!A || !B || A === B) return;
+          var ayniKapsam = kapsam.dugumler.indexOf(A) >= 0 && kapsam.dugumler.indexOf(B) >= 0;
+          kenarEkle(A, B, {
+            tur: ayniKapsam ? 'ortuk' : 'ilgili',
+            line: c.line, kosul: etiketle(ci)
+          });
+        });
+      });
+
+      /* 4) İç içe alt sorgular — kaynak yan tümceleri 1. adımda gezildi,
+            tekrar gezilirse türetilmiş tablonun içi iki kez düğüm üretir */
+      clauses.forEach(function (c) {
+        if (c.type === 'Join') {
+          if (c.on) altSorgulariGez(c.on, kapsam);
+          return;
+        }
+        if (c.type === 'Clause' && (KAYNAK_KW[c.kw] || HEDEF_KW[c.kw])) return;
+        if (c.body) altSorgulariGez(c.body, kapsam);
+      });
+    }
+
+    function etiketle(ci) {
+      return sade(ci.sol.alias) + '.' + sade(ci.sol.kolon) + ' = ' +
+             sade(ci.sag.alias) + '.' + sade(ci.sag.kolon);
+    }
+
+    /** İfade içindeki alt sorgular: kendi kapsamlarında gezilir */
+    function altSorgulariGez(nodes, kapsam) {
+      nodes.forEach(function (n) {
+        if (!n) return;
+        if (n.type === 'Paren') {
+          if (n.kind === 'sub') {
+            var ic = Kapsam('alt sorgu', kapsam);
+            ifadeleriGez(n.stmts, ic);
+          } else {
+            altSorgulariGez(n.body || [], kapsam);
+          }
+          return;
+        }
+        if (n.type === 'Case') {
+          altSorgulariGez(n.operand, kapsam);
+          n.whens.forEach(function (w) {
+            altSorgulariGez(w.when, kapsam);
+            altSorgulariGez(w.then, kapsam);
+          });
+          if (n.els) altSorgulariGez(n.els, kapsam);
+        }
+      });
+    }
+
+    function ifadeleriGez(stmts, kapsam) {
+      (stmts || []).forEach(function (s) { ifadeGez(s, kapsam); });
+    }
+
+    function ifadeGez(s, kapsam) {
+      if (!s) return;
+      switch (s.type) {
+        case 'Stmt':
+          yanTumceGez(s.body, kapsam);
+          break;
+        case 'Cte': {
+          /* CTE çıktısı üst kapsamda bir düğümdür; gövdesindeki tablolar
+             ona doğru "besler" kenarıyla akar. */
+          s.items.forEach(function (it) {
+            var ad = it.name ? sade(it.name.value) : 'cte';
+            var d = dugumEkle(kapsam, { ad: ad, kisa: ad, tur: 'cte', line: it.line });
+            adKaydet(kapsam, ad, d);
+            var ic = Kapsam('CTE ' + ad, kapsam);
+            ifadeleriGez(it.stmts, ic);
+            beslemeEkle(ic, d);
+          });
+          if (s.main && s.main.length) yanTumceGez(s.main, kapsam);
+          break;
+        }
+        case 'Block':
+          ifadeleriGez(s.body, kapsam);
+          break;
+        case 'If':
+          if (s.cond) altSorgulariGez(s.cond, kapsam);
+          ifadeGez(s.then, kapsam);
+          ifadeGez(s.els, kapsam);
+          break;
+        case 'Else':
+          ifadeGez(s.body, kapsam);
+          break;
+        default:
+          break;
+      }
+    }
+
+    /* Her üst düzey ifade kendi kapsamında — takma adlar ifadeler arası sızmaz */
+    (tree.body || []).forEach(function (batch) {
+      (batch.body || []).forEach(function (s) {
+        ifadeGez(s, Kapsam('ana sorgu', null));
+      });
+    });
+
+    /* Hiçbir kenarı olmayan tek düğümlü çizge anlamlı değil */
+    G.bos = G.nodes.length === 0;
+    return G;
+  }
+
+  function analiz(text) {
+    if (!text || !text.trim()) return { nodes: [], edges: [], bos: true };
+    return build(SQL.Parse.parse(text));
+  }
+
+  SQL.Graph = { build: build, analiz: analiz, JOIN_KISA: JOIN_KISA };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
      SQL.Paint — söz dizimi renklendirme
      Tokenizer'ın kendisini kullanır; ayrı bir kural seti yok.
      ============================================================ -->
@@ -3671,7 +4186,7 @@ window.App = window.App || {};
   }
 
   function katmanKapat() {
-    ['drawerLib', 'drawerTools', 'palette', 'helpModal'].forEach(function (id) {
+    ['drawerLib', 'drawerTools', 'palette', 'helpModal', 'vizModal'].forEach(function (id) {
       $(id).hidden = true;
     });
     $('scrim').hidden = true;
@@ -3698,6 +4213,7 @@ window.App = window.App || {};
       { ad: 'Girdiyi temizle', kat: 'Dosya', fn: temizle },
       { ad: 'Kütüphaneyi aç', kat: 'Panel', fn: function () { katmanAc('drawerLib'); } },
       { ad: 'Araçları aç', kat: 'Panel', fn: function () { katmanAc('drawerTools'); } },
+      { ad: 'Şemayı görselleştir', kat: 'Panel', tus: 'Ctrl+G', fn: function () { katmanAc('vizModal'); } },
       { ad: 'Bul & değiştir', kat: 'Panel', tus: 'Ctrl+F', fn: findAc },
       { ad: 'Analiz panelini aç/kapat', kat: 'Panel', tus: 'Ctrl+B', fn: function () {
           $('optSide').checked = !$('optSide').checked; yanPanel(); } },
@@ -3904,6 +4420,7 @@ window.App = window.App || {};
   $('btnDownload').addEventListener('click', indir);
   $('btnLib').addEventListener('click', function () { katmanAc('drawerLib'); });
   $('btnTools').addEventListener('click', function () { katmanAc('drawerTools'); });
+  $('btnViz').addEventListener('click', function () { katmanAc('vizModal'); });
   $('btnOpen').addEventListener('click', function () { $('filePick').click(); });
   $('btnSample').addEventListener('click', function () { input.value = ORNEK; calistir(); });
   $('btnClear').addEventListener('click', temizle);
@@ -3997,6 +4514,7 @@ window.App = window.App || {};
     if (k === 'f') { e.preventDefault(); findAc(); return; }
     if (k === 'k') { e.preventDefault(); palAc(); return; }
     if (k === 'b') { e.preventDefault(); $('optSide').checked = !$('optSide').checked; yanPanel(); return; }
+    if (k === 'g') { e.preventDefault(); katmanAc('vizModal'); return; }
     if (k === 't') { e.preventDefault(); yeniSekme(); return; }
     if (k === 'w') { e.preventDefault(); sekmeKapat(S.aktif); return; }
     if (k === '/') { e.preventDefault(); katmanAc('helpModal'); return; }
@@ -4043,6 +4561,7 @@ window.App = window.App || {};
     sekmeleriTazele: renderTabs,
     kaydetTaslak: kaydetTaslak,
     calistir: calistir,
+    satiraGit: gotoLine,
     $: $, $$: $$
   };
 
@@ -5333,6 +5852,734 @@ window.App = window.App || {};
   });
 
   App.Tools = { goster: aracGoster };
+})(window.App, window.SQL);
+</script>
+
+<!-- ============================================================
+     App.Viz — ETKİLEŞİMLİ ŞEMA
+     SQL.Graph'ın çıkardığı ilişkileri SVG olarak çizer. Yerleşim
+     kuvvet tabanlıdır: düğümler birbirini iter, kenarlar yay gibi
+     çeker. Renkler CSS değişkenlerinden okunup öznitelik olarak
+     yazılır; böylece indirilen SVG tek başına da doğru görünür.
+     ============================================================ -->
+<script>
+(function (App, SQL) {
+  'use strict';
+
+  var Sh = App.Shell, $ = Sh.$;
+  var NS = 'http://www.w3.org/2000/svg';
+  var canvas = $('vizCanvas');
+
+  var V = {
+    dugumler: [], kenarlar: [], svg: null, kok: null,
+    tx: 0, ty: 0, k: 1, secili: null, olcer: null,
+    rafId: null, isi: 0, surukle: null, kaydir: null
+  };
+
+  /* ============================================================
+     Ölçüm ve renkler
+     ============================================================ */
+
+  function olc(metin, font) {
+    if (!V.olcer) V.olcer = document.createElement('canvas').getContext('2d');
+    V.olcer.font = font;
+    return V.olcer.measureText(metin).width;
+  }
+
+  function palet() {
+    var cs = getComputedStyle(document.body);
+    function v(ad, yedek) {
+      return (cs.getPropertyValue(ad) || '').trim() || yedek;
+    }
+    return {
+      ink: v('--ink', '#171C22'), soft: v('--ink-soft', '#5C6570'),
+      faint: v('--ink-faint', '#A7ADB4'), rule: v('--rule', '#C3C6BC'),
+      sheet: v('--sheet', '#F7F7F3'), field: v('--field', '#FFFFFF'),
+      stamp: v('--stamp', '#A32B21'), warn: v('--warn', '#8A5A11'),
+      warnBg: v('--warn-bg', '#FBF3E2'), func: v('--func', '#6A3E8E'),
+      kw: v('--kw', '#25506B'), danger: v('--danger', '#A32B21')
+    };
+  }
+
+  var TUR_AD = {
+    kalici: 'kalıcı tablo', gecici: 'geçici tablo (#)',
+    genel: 'genel geçici tablo (##)', degisken: 'tablo değişkeni (@)',
+    cte: 'CTE', turetilmis: 'türetilmiş tablo'
+  };
+
+  function dugumStil(n, P) {
+    if (n.tur === 'gecici' || n.tur === 'genel' || n.tur === 'degisken') {
+      return { cizgi: P.warn, dolgu: P.warnBg, kesik: '5 3', yazi: P.warn };
+    }
+    if (n.tur === 'cte') return { cizgi: P.func, dolgu: P.field, kesik: '2 3', yazi: P.func };
+    if (n.tur === 'turetilmis') {
+      return { cizgi: P.kw, dolgu: P.field, kesik: '5 3', yazi: P.kw };
+    }
+    return { cizgi: P.ink, dolgu: P.field, kesik: null, yazi: P.ink };
+  }
+
+  function kenarStil(e, P) {
+    switch (e.tur) {
+      case 'besler':
+        return { renk: P.func, kesik: '1 4', kalin: 1.4, ok: true, etiket: 'besler' };
+      case 'ortuk':
+        return { renk: P.warn, kesik: '6 4', kalin: 1.7, etiket: 'WHERE' };
+      case 'ilgili':
+        return { renk: P.faint, kesik: '2 4', kalin: 1.5, etiket: 'korelasyon' };
+      case 'capraz':
+        return { renk: P.danger, kesik: '8 4', kalin: 1.8, etiket: e.joinTur };
+      case 'kosulsuz':
+        return { renk: P.danger, kesik: '8 4', kalin: 2.4,
+                 etiket: (e.joinTur || 'JOIN') + ' · koşulsuz' };
+      default:
+        return { renk: P.soft, kesik: null, kalin: 1.9, etiket: e.joinTur || 'JOIN' };
+    }
+  }
+
+  /* ============================================================
+     Çizge kurulumu
+     ============================================================ */
+
+  function kur() {
+    var metin = Sh.cikti() || Sh.girdi();
+    var G;
+    try { G = SQL.Graph.analiz(metin); }
+    catch (e) { G = { nodes: [], edges: [] }; }
+
+    var harita = Object.create(null);
+    V.dugumler = G.nodes.map(function (n) {
+      var ana = n.alias || n.kisa;
+      var alt = n.ad !== ana ? n.ad : '';
+      var w = Math.max(
+        olc(ana, '600 13px system-ui,sans-serif'),
+        olc(alt, '11px ui-monospace,monospace')
+      ) + 28;
+      var d = {
+        id: n.id, ana: ana, alt: alt, tam: n.ad, tur: n.tur, line: n.line,
+        w: Math.max(94, Math.min(230, w)), h: alt ? 46 : 32,
+        x: 0, y: 0, vx: 0, vy: 0, fx: 0, fy: 0, sabit: false, derece: 0
+      };
+      harita[n.id] = d;
+      return d;
+    });
+
+    V.kenarlar = G.edges.map(function (e) {
+      var a = harita[e.a], b = harita[e.b];
+      if (a) a.derece++;
+      if (b) b.derece++;
+      return {
+        id: e.id, _a: a, _b: b, tur: e.tur, joinTur: e.joinTur,
+        kosullar: e.kosullar || [], line: e.line
+      };
+    }).filter(function (e) { return e._a && e._b; });
+
+    V.secili = null;
+    yerlesim(true);
+  }
+
+  /* ============================================================
+     Kuvvet tabanlı yerleşim
+     ============================================================ */
+
+  /** Yerleşim için çalışma alanı — çok küçük panolarda simülasyon
+      sıkışmasın diye alt sınır uygulanır */
+  function olcu() {
+    var r = canvas.getBoundingClientRect();
+    return { W: Math.max(320, r.width), H: Math.max(240, r.height) };
+  }
+
+  /** Sığdırma için panonun gerçek boyutu — burada alt sınır uygulanamaz,
+      yoksa görünenden büyük bir alana göre ölçek hesaplanır ve düğümler
+      ekran dışında kalır */
+  function panoOlcu() {
+    var r = canvas.getBoundingClientRect();
+    return { W: Math.max(80, r.width), H: Math.max(80, r.height) };
+  }
+
+  function yerlesim(sifirdan) {
+    var o = olcu(), n = V.dugumler.length;
+    if (!n) return;
+    if (sifirdan) {
+      var yaricap = Math.min(o.W, o.H) * 0.32;
+      V.dugumler.forEach(function (d, i) {
+        var a = (i / n) * Math.PI * 2;
+        d.x = o.W / 2 + Math.cos(a) * yaricap;
+        d.y = o.H / 2 + Math.sin(a) * yaricap;
+        d.vx = d.vy = 0; d.sabit = false;
+      });
+    }
+    for (var i = 0; i < 420; i++) adim(o.W, o.H, 1);
+  }
+
+  function adim(W, H, isi) {
+    var ds = V.dugumler, i, j, a, b, dx, dy, d2, d, f;
+
+    for (i = 0; i < ds.length; i++) { ds[i].fx = 0; ds[i].fy = 0; }
+
+    /* itme — düğüm sayısı küçük olduğu için tam ikili tarama yeterli */
+    for (i = 0; i < ds.length; i++) {
+      a = ds[i];
+      for (j = i + 1; j < ds.length; j++) {
+        b = ds[j];
+        dx = a.x - b.x; dy = a.y - b.y;
+        d2 = dx * dx + dy * dy;
+        if (d2 < 25) { d2 = 25; dx = (Math.random() - 0.5); dy = (Math.random() - 0.5); }
+        d = Math.sqrt(d2);
+        f = 34000 / d2;
+        a.fx += dx / d * f; a.fy += dy / d * f;
+        b.fx -= dx / d * f; b.fy -= dy / d * f;
+      }
+    }
+
+    /* yaylar */
+    V.kenarlar.forEach(function (e) {
+      a = e._a; b = e._b;
+      dx = b.x - a.x; dy = b.y - a.y;
+      d = Math.sqrt(dx * dx + dy * dy) || 1;
+      var boy = (a.w + b.w) / 2 + (e.tur === 'besler' ? 70 : 105);
+      f = (d - boy) * 0.022;
+      var ux = dx / d * f, uy = dy / d * f;
+      a.fx += ux; a.fy += uy;
+      b.fx -= ux; b.fy -= uy;
+    });
+
+    /* merkeze hafif çekim — kopuk düğümler dağılıp kaybolmasın */
+    ds.forEach(function (nd) {
+      nd.fx += (W / 2 - nd.x) * 0.0065;
+      nd.fy += (H / 2 - nd.y) * 0.0065;
+    });
+
+    ds.forEach(function (nd) {
+      if (nd.sabit) { nd.vx = nd.vy = 0; return; }
+      nd.vx = (nd.vx + nd.fx) * 0.80;
+      nd.vy = (nd.vy + nd.fy) * 0.80;
+      var hiz = Math.sqrt(nd.vx * nd.vx + nd.vy * nd.vy);
+      var ust = 26 * isi;
+      if (hiz > ust) { nd.vx = nd.vx / hiz * ust; nd.vy = nd.vy / hiz * ust; }
+      nd.x += nd.vx; nd.y += nd.vy;
+    });
+  }
+
+  /** Sürükleme sırasında kısa süreli canlandırma */
+  function canlandir() {
+    if (V.rafId) return;
+    V.isi = 1;
+    var o = olcu();
+    (function dongu() {
+      adim(o.W, o.H, V.isi);
+      konumlariUygula();
+      V.isi *= V.surukle ? 1 : 0.93;
+      if (V.surukle || V.isi > 0.05) V.rafId = requestAnimationFrame(dongu);
+      else { V.rafId = null; V.isi = 0; }
+    })();
+  }
+
+  function sigdir() {
+    if (!V.dugumler.length) return;
+    var o = panoOlcu();
+    var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    V.dugumler.forEach(function (d) {
+      x1 = Math.min(x1, d.x - d.w / 2); x2 = Math.max(x2, d.x + d.w / 2);
+      y1 = Math.min(y1, d.y - d.h / 2); y2 = Math.max(y2, d.y + d.h / 2);
+    });
+    var pad = Math.min(46, Math.min(o.W, o.H) * 0.12);
+    var k = Math.min((o.W - pad * 2) / Math.max(1, x2 - x1),
+                     (o.H - pad * 2) / Math.max(1, y2 - y1));
+    V.k = Math.max(0.12, Math.min(1.6, k));
+    V.tx = o.W / 2 - ((x1 + x2) / 2) * V.k;
+    V.ty = o.H / 2 - ((y1 + y2) / 2) * V.k;
+    donusumUygula();
+  }
+
+  function donusumUygula() {
+    if (V.kok) {
+      V.kok.setAttribute('transform',
+        'translate(' + V.tx.toFixed(2) + ',' + V.ty.toFixed(2) + ') scale(' + V.k.toFixed(3) + ')');
+    }
+  }
+
+  /* ============================================================
+     Çizim
+     ============================================================ */
+
+  function el(ad, ozn) {
+    var e = document.createElementNS(NS, ad);
+    for (var k in ozn) if (ozn[k] !== null && ozn[k] !== undefined) {
+      e.setAttribute(k, ozn[k]);
+    }
+    return e;
+  }
+
+  function gorunurKenarlar() {
+    var whereAcik = $('vizWhere').checked;
+    var akisAcik = $('vizAkis').checked;
+    return V.kenarlar.filter(function (e) {
+      if (!whereAcik && (e.tur === 'ortuk' || e.tur === 'ilgili')) return false;
+      if (!akisAcik && e.tur === 'besler') return false;
+      return true;
+    });
+  }
+
+  function ciz(sigdirMi) {
+    canvas.innerHTML = '';
+    var P = palet();
+
+    if (!V.dugumler.length) {
+      var bos = document.createElement('div');
+      bos.className = 'viz-bos';
+      bos.innerHTML = '<div><b>Çizilecek ilişki yok.</b><br>' +
+        'Şema, sorgudaki tabloları ve aralarındaki birleştirmeleri gösterir. ' +
+        'En az bir <code>FROM</code> gerekiyor.</div>';
+      canvas.appendChild(bos);
+      $('vizOzet').textContent = '';
+      gosterge(P, []);
+      return;
+    }
+
+    var svg = el('svg', { xmlns: NS, width: '100%', height: '100%' });
+    var kok = el('g', {});
+
+    /* ok ucu — yalnızca besleme kenarlarında */
+    var defs = el('defs', {});
+    var mk = el('marker', {
+      id: 'vzOk', viewBox: '0 0 10 10', refX: '9', refY: '5',
+      markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse'
+    });
+    mk.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: P.func }));
+    defs.appendChild(mk);
+    svg.appendChild(defs);
+
+    var gKenar = el('g', {}), gEtiket = el('g', {}), gDugum = el('g', {});
+    kok.appendChild(gKenar); kok.appendChild(gEtiket); kok.appendChild(gDugum);
+    svg.appendChild(kok);
+
+    /* Aynı çift arasındaki kenarlar üst üste binmesin */
+    var ciftSayac = Object.create(null);
+    var kenarlar = gorunurKenarlar();
+    kenarlar.forEach(function (e) {
+      var k = [e._a.id, e._b.id].sort().join('|');
+      ciftSayac[k] = (ciftSayac[k] || 0) + 1;
+    });
+    var ciftIndex = Object.create(null);
+    var kosulAcik = $('vizKosul').checked;
+
+    kenarlar.forEach(function (e) {
+      var k = [e._a.id, e._b.id].sort().join('|');
+      ciftIndex[k] = (ciftIndex[k] || 0);
+      e._ofset = (ciftIndex[k] - (ciftSayac[k] - 1) / 2) * 30;
+      ciftIndex[k]++;
+
+      var st = kenarStil(e, P);
+      var yol = el('path', {
+        fill: 'none', stroke: st.renk, 'stroke-width': st.kalin,
+        'stroke-dasharray': st.kesik, 'stroke-linecap': 'round',
+        'marker-end': st.ok ? 'url(#vzOk)' : null,
+        'class': 'vz-kenar', 'data-e': e.id
+      });
+      gKenar.appendChild(yol);
+      e._yol = yol;
+
+      /* JOIN türü bilgi taşır (INNER/LEFT/…), bu yüzden koşulla birlikte
+         yazılır. WHERE ve korelasyonda türü çizgi biçimi zaten anlatıyor;
+         koşul varsa tür kelimesi yalnızca etiketi uzatır. */
+      var parcalar = [];
+      var kosulVar = kosulAcik && e.kosullar.length;
+      var turYaz = e.tur === 'join' || e.tur === 'capraz' || e.tur === 'kosulsuz' || !kosulVar;
+      if (st.etiket && e.tur !== 'besler' && turYaz) parcalar.push(st.etiket);
+      if (kosulVar) parcalar.push(e.kosullar.join('  ·  '));
+      if (parcalar.length) {
+        var arka = el('rect', { fill: P.sheet, rx: 2, 'data-e': e.id, opacity: '0.92' });
+        var t = el('text', {
+          'class': 'vz-kenar-etiket', 'font-size': '10.5', fill: st.renk,
+          'text-anchor': 'middle', 'data-e': e.id
+        });
+        t.textContent = parcalar.join('   ');
+        gEtiket.appendChild(arka);
+        gEtiket.appendChild(t);
+        e._etiket = t; e._etiketArka = arka;
+      } else { e._etiket = null; e._etiketArka = null; }
+    });
+
+    V.dugumler.forEach(function (d) {
+      var st = dugumStil(d, P);
+      var g = el('g', { 'class': 'vz-node', 'data-n': d.id, tabindex: '0', role: 'button' });
+      var r = el('rect', {
+        x: -d.w / 2, y: -d.h / 2, width: d.w, height: d.h, rx: 3,
+        fill: st.dolgu, stroke: st.cizgi, 'stroke-width': 1.6,
+        'stroke-dasharray': st.kesik
+      });
+      var t1 = el('text', {
+        'text-anchor': 'middle', y: d.alt ? -3 : 4.5, 'font-size': '13',
+        'font-weight': '600', fill: st.yazi,
+        'font-family': 'system-ui,-apple-system,Segoe UI,sans-serif'
+      });
+      t1.textContent = d.ana;
+      g.appendChild(r); g.appendChild(t1);
+      if (d.alt) {
+        var t2 = el('text', {
+          'text-anchor': 'middle', y: 13, 'font-size': '10.5', fill: P.soft,
+          'font-family': 'ui-monospace,Consolas,monospace'
+        });
+        t2.textContent = d.alt;
+        g.appendChild(t2);
+      }
+      var ip = el('title', {});
+      ip.textContent = d.tam + ' — ' + (TUR_AD[d.tur] || d.tur) +
+                       (d.line ? ' · satır ' + d.line : '');
+      g.appendChild(ip);
+      gDugum.appendChild(g);
+      d._g = g; d._rect = r;
+    });
+
+    canvas.appendChild(svg);
+    V.svg = svg; V.kok = kok;
+    konumlariUygula();
+    olaylariBagla(svg);
+    ozet();
+    gosterge(P, kenarlar);
+    /* Sığdırma en sona kalmalı: gösterge doldukça satır sayısı artıyor ve
+       pano kısalıyor; önce hesaplanırsa ölçek olduğundan büyük çıkıp alttaki
+       düğümler kırpılıyor. */
+    if (sigdirMi) sigdir(); else donusumUygula();
+  }
+
+  /** Dikdörtgen sınırında kenar başlangıç/bitiş noktası */
+  function sinir(n, hx, hy) {
+    var dx = hx - n.x, dy = hy - n.y;
+    if (!dx && !dy) return { x: n.x, y: n.y };
+    var w = n.w / 2 + 3, h = n.h / 2 + 3;
+    var t = Math.min(
+      dx === 0 ? Infinity : w / Math.abs(dx),
+      dy === 0 ? Infinity : h / Math.abs(dy)
+    );
+    return { x: n.x + dx * t, y: n.y + dy * t };
+  }
+
+  function konumlariUygula() {
+    V.dugumler.forEach(function (d) {
+      if (d._g) {
+        d._g.setAttribute('transform',
+          'translate(' + d.x.toFixed(1) + ',' + d.y.toFixed(1) + ')');
+      }
+    });
+    gorunurKenarlar().forEach(function (e) {
+      if (!e._yol) return;
+      var a = e._a, b = e._b;
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var uz = Math.sqrt(dx * dx + dy * dy) || 1;
+      var nx = -dy / uz, ny = dx / uz;
+      var cx = mx + nx * e._ofset, cy = my + ny * e._ofset;
+      var p1 = sinir(a, cx, cy), p2 = sinir(b, cx, cy);
+      e._yol.setAttribute('d', 'M' + p1.x.toFixed(1) + ',' + p1.y.toFixed(1) +
+        ' Q' + cx.toFixed(1) + ',' + cy.toFixed(1) +
+        ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1));
+      if (e._etiket) {
+        var ex = (p1.x + 2 * cx + p2.x) / 4, ey = (p1.y + 2 * cy + p2.y) / 4;
+        e._etiket.setAttribute('x', ex.toFixed(1));
+        e._etiket.setAttribute('y', (ey + 3.5).toFixed(1));
+        var bb = null;
+        try { bb = e._etiket.getBBox(); } catch (err) { bb = null; }
+        if (bb && e._etiketArka) {
+          e._etiketArka.setAttribute('x', (bb.x - 3).toFixed(1));
+          e._etiketArka.setAttribute('y', (bb.y - 1).toFixed(1));
+          e._etiketArka.setAttribute('width', (bb.width + 6).toFixed(1));
+          e._etiketArka.setAttribute('height', (bb.height + 2).toFixed(1));
+        }
+      }
+    });
+  }
+
+  /* ============================================================
+     Özet, gösterge, ayrıntı
+     ============================================================ */
+
+  function ozet() {
+    var kenarlar = gorunurKenarlar();
+    var joinSayi = kenarlar.filter(function (e) {
+      return e.tur === 'join' || e.tur === 'capraz' || e.tur === 'kosulsuz';
+    }).length;
+    var riskli = kenarlar.filter(function (e) { return e.tur === 'kosulsuz'; }).length;
+    var kopuk = V.dugumler.filter(function (d) { return !d.derece; }).length;
+    var p = [V.dugumler.length + ' tablo', joinSayi + ' birleştirme'];
+    if (riskli) p.push(riskli + ' koşulsuz');
+    if (kopuk) p.push(kopuk + ' bağlantısız');
+    $('vizOzet').textContent = p.join(' · ');
+  }
+
+  function gosterge(P, kenarlar) {
+    var kutu = $('vizLegend');
+    kutu.innerHTML = '';
+    var turler = {};
+    (kenarlar || []).forEach(function (e) { turler[e.tur] = true; });
+    var dTurler = {};
+    V.dugumler.forEach(function (d) { dTurler[d.tur] = true; });
+
+    function cizgi(renk, kesik, kalin, ok) {
+      var sv = document.createElementNS(NS, 'svg');
+      sv.setAttribute('viewBox', '0 0 26 10');
+      sv.appendChild(el('path', { d: 'M1,5 L25,5', stroke: renk, 'stroke-width': kalin || 2,
+                                  'stroke-dasharray': kesik, fill: 'none',
+                                  'stroke-linecap': 'round' }));
+      if (ok) {
+        sv.appendChild(el('path', { d: 'M19,1.5 L25,5 L19,8.5', fill: 'none',
+                                    stroke: renk, 'stroke-width': 1.6 }));
+      }
+      return sv;
+    }
+    function kutucuk(cizgiRenk, dolgu, kesik) {
+      var sv = document.createElementNS(NS, 'svg');
+      sv.setAttribute('viewBox', '0 0 26 10');
+      sv.appendChild(el('rect', { x: 3, y: 1, width: 20, height: 8, rx: 1.5,
+                                  fill: dolgu, stroke: cizgiRenk, 'stroke-width': 1.4,
+                                  'stroke-dasharray': kesik }));
+      return sv;
+    }
+    function ekle(gorsel, metin) {
+      var sp = document.createElement('span');
+      sp.appendChild(gorsel);
+      sp.appendChild(document.createTextNode(metin));
+      kutu.appendChild(sp);
+    }
+
+    if (dTurler.kalici) ekle(kutucuk(P.ink, P.field, null), 'kalıcı tablo');
+    if (dTurler.gecici || dTurler.genel || dTurler.degisken) {
+      ekle(kutucuk(P.warn, P.warnBg, '4 2'), 'geçici tablo');
+    }
+    if (dTurler.cte) ekle(kutucuk(P.func, P.field, '2 2'), 'CTE');
+    if (dTurler.turetilmis) ekle(kutucuk(P.kw, P.field, '4 2'), 'türetilmiş');
+    if (turler.join) ekle(cizgi(P.soft, null, 2), 'JOIN');
+    if (turler.ortuk) ekle(cizgi(P.warn, '5 3', 2), 'WHERE ile örtük');
+    if (turler.ilgili) ekle(cizgi(P.faint, '2 3', 2), 'korelasyon');
+    if (turler.capraz) ekle(cizgi(P.danger, '6 3', 2), 'çapraz');
+    if (turler.kosulsuz) ekle(cizgi(P.danger, '6 3', 2.6), 'koşulsuz — kartezyen');
+    if (turler.besler) ekle(cizgi(P.func, '1 3', 1.6, true), 'veri akışı');
+  }
+
+  function ayrintiTemizle() {
+    $('vizDetay').textContent = '';
+    V.secili = null;
+    if (!V.svg) return;
+    Array.prototype.forEach.call(V.svg.querySelectorAll('.vz-sonuk'), function (e) {
+      e.classList.remove('vz-sonuk');
+    });
+    Array.prototype.forEach.call(V.svg.querySelectorAll('.vz-secili'), function (e) {
+      e.classList.remove('vz-secili');
+    });
+  }
+
+  function dugumBul(id) {
+    for (var i = 0; i < V.dugumler.length; i++) {
+      if (V.dugumler[i].id === id) return V.dugumler[i];
+    }
+    return null;
+  }
+
+  function dugumSec(d) {
+    ayrintiTemizle();
+    V.secili = d.id;
+    var ilgili = Object.create(null);
+    ilgili[d.id] = true;
+    var komsu = [];
+    gorunurKenarlar().forEach(function (e) {
+      if (e._a.id === d.id || e._b.id === d.id) {
+        ilgili[e._a.id] = true; ilgili[e._b.id] = true;
+        var oteki = e._a.id === d.id ? e._b : e._a;
+        komsu.push(oteki.ana + (e.kosullar.length ? ' (' + e.kosullar[0] + ')' : ''));
+      } else if (e._yol) e._yol.classList.add('vz-sonuk');
+    });
+    V.dugumler.forEach(function (x) {
+      if (!ilgili[x.id] && x._g) x._g.classList.add('vz-sonuk');
+    });
+    d._g.classList.add('vz-secili');
+
+    var det = $('vizDetay');
+    det.innerHTML = '';
+    var b = document.createElement('b');
+    b.textContent = d.tam;
+    det.appendChild(b);
+    det.appendChild(document.createTextNode(
+      ' · ' + (TUR_AD[d.tur] || d.tur) +
+      (komsu.length ? ' · ' + komsu.length + ' bağlantı: ' + komsu.join(', ')
+                    : ' · bağlantısız')
+    ));
+    if (d.line) {
+      var git = document.createElement('button');
+      git.className = 'btn';
+      git.style.marginLeft = '8px';
+      /* Sıra sayısı biçimi: "2. satıra" her sayı için doğru, ek uyumu gerektirmez */
+      git.textContent = d.line + '. satıra git';
+      git.addEventListener('click', function () {
+        Sh.katmanKapat();
+        Sh.satiraGit(d.line);
+      });
+      det.appendChild(git);
+    }
+  }
+
+  /* ============================================================
+     Etkileşim
+     ============================================================ */
+
+  function svgNokta(ev) {
+    var r = V.svg.getBoundingClientRect();
+    return {
+      x: (ev.clientX - r.left - V.tx) / V.k,
+      y: (ev.clientY - r.top - V.ty) / V.k
+    };
+  }
+
+  function olaylariBagla(svg) {
+    svg.addEventListener('pointerdown', function (ev) {
+      var g = ev.target.closest ? ev.target.closest('.vz-node') : null;
+      if (g) {
+        var d = dugumBul(g.getAttribute('data-n'));
+        if (!d) return;
+        var p = svgNokta(ev);
+        V.surukle = { d: d, dx: d.x - p.x, dy: d.y - p.y, tasindi: false };
+        d.sabit = true;
+        try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+        canlandir();
+        return;
+      }
+      V.kaydir = { x: ev.clientX, y: ev.clientY, tx: V.tx, ty: V.ty };
+      svg.classList.add('tutuluyor');
+      try { svg.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+
+    svg.addEventListener('pointermove', function (ev) {
+      if (V.surukle) {
+        var p = svgNokta(ev);
+        V.surukle.d.x = p.x + V.surukle.dx;
+        V.surukle.d.y = p.y + V.surukle.dy;
+        V.surukle.tasindi = true;
+        konumlariUygula();
+        return;
+      }
+      if (V.kaydir) {
+        V.tx = V.kaydir.tx + (ev.clientX - V.kaydir.x);
+        V.ty = V.kaydir.ty + (ev.clientY - V.kaydir.y);
+        donusumUygula();
+      }
+    });
+
+    function birak(ev) {
+      if (V.surukle) {
+        var s = V.surukle;
+        V.surukle = null;
+        s.d.sabit = false;
+        if (!s.tasindi) dugumSec(s.d);
+        canlandir();
+      }
+      if (V.kaydir) { V.kaydir = null; svg.classList.remove('tutuluyor'); }
+      if (ev && ev.pointerId !== undefined) {
+        try { svg.releasePointerCapture(ev.pointerId); } catch (e) {}
+      }
+    }
+    svg.addEventListener('pointerup', birak);
+    svg.addEventListener('pointercancel', birak);
+
+    svg.addEventListener('click', function (ev) {
+      if (ev.target.closest && ev.target.closest('.vz-node')) return;
+      ayrintiTemizle();
+    });
+
+    svg.addEventListener('keydown', function (ev) {
+      var g = ev.target.closest ? ev.target.closest('.vz-node') : null;
+      if (!g || (ev.key !== 'Enter' && ev.key !== ' ')) return;
+      ev.preventDefault();
+      var d = dugumBul(g.getAttribute('data-n'));
+      if (d) dugumSec(d);
+    });
+
+    svg.addEventListener('wheel', function (ev) {
+      ev.preventDefault();
+      var r = svg.getBoundingClientRect();
+      var mx = ev.clientX - r.left, my = ev.clientY - r.top;
+      var oncekiK = V.k;
+      V.k = Math.max(0.2, Math.min(3, V.k * Math.exp(-ev.deltaY * 0.0016)));
+      /* imlecin altındaki nokta sabit kalsın */
+      V.tx = mx - (mx - V.tx) * (V.k / oncekiK);
+      V.ty = my - (my - V.ty) * (V.k / oncekiK);
+      donusumUygula();
+    }, { passive: false });
+  }
+
+  /* ============================================================
+     SVG dışa aktarımı
+     ============================================================ */
+
+  function svgIndir() {
+    if (!V.svg || !V.dugumler.length) { Sh.flash('İndirilecek şema yok.'); return; }
+    var P = palet();
+    var kopya = V.svg.cloneNode(true);
+
+    /* Ekran etkileşimi için eklenen sınıflar dışa aktarımda anlamsız */
+    Array.prototype.forEach.call(kopya.querySelectorAll('.vz-sonuk,.vz-secili'),
+      function (e) { e.classList.remove('vz-sonuk', 'vz-secili'); });
+
+    var x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    V.dugumler.forEach(function (d) {
+      x1 = Math.min(x1, d.x - d.w / 2); x2 = Math.max(x2, d.x + d.w / 2);
+      y1 = Math.min(y1, d.y - d.h / 2); y2 = Math.max(y2, d.y + d.h / 2);
+    });
+    var pad = 60;
+    var W = (x2 - x1) + pad * 2, H = (y2 - y1) + pad * 2;
+
+    kopya.setAttribute('viewBox', (x1 - pad) + ' ' + (y1 - pad) + ' ' + W + ' ' + H);
+    kopya.setAttribute('width', Math.round(W));
+    kopya.setAttribute('height', Math.round(H));
+    kopya.setAttribute('xmlns', NS);
+    var kokG = kopya.querySelector('g');
+    if (kokG) kokG.removeAttribute('transform');
+
+    var arka = document.createElementNS(NS, 'rect');
+    arka.setAttribute('x', x1 - pad); arka.setAttribute('y', y1 - pad);
+    arka.setAttribute('width', W); arka.setAttribute('height', H);
+    arka.setAttribute('fill', P.sheet);
+    kopya.insertBefore(arka, kopya.firstChild);
+
+    var metin = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+                new XMLSerializer().serializeToString(kopya);
+    var sekme = Sh.aktifSekme();
+    var ad = ((sekme && sekme.ad) || 'sema').replace(/[^\wçğıöşüÇĞİÖŞÜ .-]+/g, '_') + '-sema.svg';
+    var blob = new Blob([metin], { type: 'image/svg+xml;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = ad;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    Sh.flash(ad + ' indirildi.');
+  }
+
+  /* ============================================================
+     Bağlantılar
+     ============================================================ */
+
+  document.addEventListener('katman:ac', function (e) {
+    if (e.detail !== 'vizModal') return;
+    kur();
+    ciz(true);
+  });
+
+  ['vizWhere', 'vizKosul', 'vizAkis'].forEach(function (id) {
+    $(id).addEventListener('change', function () { ciz(); });
+  });
+  $('vizSigdir').addEventListener('click', function () { sigdir(); });
+  $('vizYeniden').addEventListener('click', function () {
+    ayrintiTemizle(); yerlesim(true); konumlariUygula(); sigdir();
+  });
+  $('vizSvg').addEventListener('click', svgIndir);
+
+  /* Tema değişince renkler yeniden okunmalı */
+  new MutationObserver(function () {
+    if (!$('vizModal').hidden) ciz(false);
+  }).observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
+
+  window.addEventListener('resize', function () {
+    if (!$('vizModal').hidden) sigdir();
+  });
+
+  App.Viz = { kur: kur, ciz: ciz, durum: V };
 })(window.App, window.SQL);
 </script>
 

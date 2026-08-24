@@ -522,3 +522,132 @@ window.OPT_SETS = [
   { ad: 'parantez boşluğu', opt: { parenSpacing: true } },
   { ad: 'boş satır yok', opt: { blankBetween: false } }
 ];
+
+/* ============================================================
+   Çizge (tablo / join ilişkisi) vakaları
+   Kenarlar "A —tür→ B" biçiminde yazılır; karşılaştırma sırasızdır
+   ve uçlar alfabetik sıraya alınır, çünkü kenarın yönü yalnızca
+   'besler' türünde anlamlıdır.
+   ============================================================ */
+window.GRAPH_CASES = [
+  {
+    ad: 'Zincir dışı ON doğru tabloya bağlanır',
+    sql: 'select * from a join b on 1=1 join c on c.aid=a.id',
+    dugumler: ['a', 'b', 'c'],
+    kenarlar: ['a—join—b', 'a—join—c']
+  },
+  {
+    ad: 'Çok koşullu JOIN tek kenar',
+    sql: 'select * from a join b on a.id=b.aid and a.tip=b.tip',
+    dugumler: ['a', 'b'],
+    kenarlar: ['a—join—b']
+  },
+  {
+    ad: 'Eski usul WHERE birleştirmesi',
+    sql: 'select * from a, b where a.id=b.aid and b.x=1',
+    dugumler: ['a', 'b'],
+    kenarlar: ['a—ortuk—b']
+  },
+  {
+    ad: 'CROSS JOIN çapraz sayılır',
+    sql: 'select * from a cross join b',
+    dugumler: ['a', 'b'],
+    kenarlar: ['a—capraz—b']
+  },
+  {
+    ad: 'ON olmadan JOIN koşulsuz işaretlenir',
+    sql: 'select * from a join b',
+    dugumler: ['a', 'b'],
+    kenarlar: ['a—kosulsuz—b']
+  },
+  {
+    ad: 'CTE ayrı düğüm, gövdesi onu besler',
+    sql: 'with x as (select a from t1 join t2 on t2.id=t1.id) select * from x join t3 on t3.id=x.a',
+    dugumler: ['t1', 't2', 't3', 'x'],
+    kenarlar: ['t1—besler—x', 't1—join—t2', 't2—besler—x', 't3—join—x']
+  },
+  {
+    ad: 'Türetilmiş tablo bir kez sayılır',
+    sql: 'select * from (select id from t1) d join t2 on t2.id=d.id',
+    dugumler: ['d', 't1', 't2'],
+    kenarlar: ['d—besler—t1', 'd—join—t2']
+  },
+  {
+    ad: 'Korelasyon dıştaki tabloya bağlanır',
+    sql: 'select (select count(*) from iade i where i.mid=m.id) from musteri m join siparis s on s.mid=m.id',
+    dugumler: ['iade', 'musteri', 'siparis'],
+    kenarlar: ['iade—ilgili—musteri', 'musteri—join—siparis']
+  },
+  {
+    ad: 'EXISTS korelasyonu',
+    sql: 'select * from musteri m where exists (select 1 from abonelik ab where ab.mid=m.id)',
+    dugumler: ['abonelik', 'musteri'],
+    kenarlar: ['abonelik—ilgili—musteri']
+  },
+  {
+    ad: 'Kendine birleştirme iki düğüm üretir',
+    sql: 'select * from calisan e join calisan y on y.id=e.yonetici_id',
+    dugumler: ['calisan', 'calisan'],
+    kenarlar: ['calisan—join—calisan']
+  },
+  {
+    ad: 'UPDATE hedefi FROM tablosuyla aynı düğüm',
+    sql: 'update m set m.x=1 from musteri m join siparis s on s.mid=m.id',
+    dugumler: ['musteri', 'siparis'],
+    kenarlar: ['musteri—join—siparis']
+  },
+  {
+    ad: 'SELECT INTO veri akışı üretir',
+    sql: 'select * into #tmp from siparis s join musteri m on m.id=s.mid',
+    dugumler: ['#tmp', 'musteri', 'siparis'],
+    kenarlar: ['#tmp—besler—musteri', '#tmp—besler—siparis', 'musteri—join—siparis']
+  },
+  {
+    ad: 'INSERT ... SELECT veri akışı',
+    sql: 'insert into hedef (a) select a from kaynak k join ek e on e.id=k.id',
+    dugumler: ['ek', 'hedef', 'kaynak'],
+    kenarlar: ['ek—besler—hedef', 'ek—join—kaynak', 'hedef—besler—kaynak']
+  },
+  {
+    ad: 'MERGE eşleştirme koşulu',
+    sql: 'merge into hedef as h using kaynak as k on h.id=k.id when matched then update set h.a=k.a',
+    dugumler: ['hedef', 'kaynak'],
+    kenarlar: ['hedef—join—kaynak']
+  },
+  {
+    ad: 'Fonksiyonla sarılı koşul ilişki sayılmaz',
+    sql: 'select * from a join b on upper(a.id)=b.aid',
+    dugumler: ['a', 'b'],
+    kenarlar: ['a—join—b']
+  },
+  {
+    ad: 'Sabitle karşılaştırma kenar üretmez',
+    sql: 'select * from a where a.x = 5',
+    dugumler: ['a'],
+    kenarlar: []
+  },
+  {
+    ad: 'FROM yoksa çizge boş',
+    sql: 'select 1 + 1',
+    dugumler: [],
+    kenarlar: []
+  },
+  {
+    ad: 'Bozuk sorguda çökmez',
+    sql: 'select from where ((((',
+    dugumler: [],
+    kenarlar: []
+  },
+  {
+    ad: 'Geçici tablo türleri ayrışır',
+    sql: 'select * from #yerel y join ##genel g on g.id=y.id join @degisken d on d.id=y.id',
+    dugumler: ['##genel', '#yerel', '@degisken'],
+    kenarlar: ['##genel—join—#yerel', '#yerel—join—@degisken']
+  },
+  {
+    ad: 'İç içe türetilmiş tablolar zincirlenir',
+    sql: 'select * from (select * from (select id from derin) o) d join t2 on t2.id=d.id',
+    dugumler: ['d', 'derin', 'o', 't2'],
+    kenarlar: ['d—besler—o', 'd—join—t2', 'derin—besler—o']
+  }
+];

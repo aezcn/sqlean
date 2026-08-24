@@ -128,9 +128,46 @@
       results.push({ c: c, checks: checks, ok: !bad.length });
     });
 
+    /* ---- Çizge vakaları ---- */
+    (window.GRAPH_CASES || []).forEach(function (c) {
+      var checks = [];
+      try {
+        var G = SQL.Graph.analiz(SQL.Print.format(c.sql, {}));
+        var adlar = {};
+        G.nodes.forEach(function (n) { adlar[n.id] = n.kisa; });
+
+        var dugumler = G.nodes.map(function (n) { return n.kisa; }).sort();
+        var kenarlar = G.edges.map(function (e) {
+          var uc = [adlar[e.a], adlar[e.b]].sort();
+          return uc[0] + '—' + e.tur + '—' + uc[1];
+        }).sort();
+
+        var bekD = (c.dugumler || []).slice().sort();
+        var bekK = (c.kenarlar || []).slice().sort();
+
+        if (dugumler.join(', ') !== bekD.join(', ')) {
+          checks.push({ ad: 'düğümler', ok: false,
+                        got: dugumler.join('\n'), want: bekD.join('\n') });
+        }
+        if (kenarlar.join(', ') !== bekK.join(', ')) {
+          checks.push({ ad: 'kenarlar', ok: false,
+                        got: kenarlar.join('\n'), want: bekK.join('\n') });
+        }
+      } catch (e) {
+        checks.push({ ad: 'çizge', ok: false, err: e.message + '\n' + e.stack });
+      }
+
+      var bad2 = checks.filter(function (x) { return !x.ok; });
+      if (bad2.length) fail++; else pass++;
+      results.push({ c: { ad: 'çizge · ' + c.ad, sql: c.sql }, checks: checks,
+                     ok: !bad2.length });
+    });
+
+    var toplam = CASES.length + (window.GRAPH_CASES || []).length;
+
     /* Rapor */
     sum.className = 'sum ' + (fail ? 'bad' : 'ok');
-    sum.textContent = pass + ' geçti · ' + fail + ' kaldı · toplam ' + CASES.length + ' vaka';
+    sum.textContent = pass + ' geçti · ' + fail + ' kaldı · toplam ' + toplam + ' vaka';
 
     results.forEach(function (r) {
       var d = document.createElement('details');
@@ -161,7 +198,7 @@
       out.appendChild(d);
     });
 
-    window.__RESULT__ = { pass: pass, fail: fail, total: CASES.length,
+    window.__RESULT__ = { pass: pass, fail: fail, total: toplam,
       failures: results.filter(function (r) { return !r.ok; }).map(function (r) {
         return {
           ad: r.c.ad,

@@ -60,6 +60,30 @@ kötü ihtimalle bir bölüm biçimlenmemiş kalır — sorgunuz asla bozulmaz.
   - Dengesiz parantez, kapanmamış tırnak
   - `NOLOCK` bilgilendirmesi
 
+### Şema görselleştirme
+
+**Görselleştir** düğmesi (`Ctrl+G`) sorgudaki tabloları ve aralarındaki ilişkileri
+etkileşimli bir SVG diyagrama çevirir. Düğümler sürüklenebilir, tekerlekle
+yakınlaştırılır, boşluk sürüklenerek kaydırılır; bir tabloya tıklayınca yalnızca onun
+bağlantıları öne çıkar ve tanımlandığı satıra atlanabilir. Diyagram SVG olarak
+indirilebilir.
+
+Kenarlar **ON ve WHERE koşullarındaki takma adlar çözülerek** kurulur — "birleştirme
+bir önceki tabloya bağlanır" varsayımı yanlış olurdu. `JOIN c ON c.aid = a.id`
+yazıldığında kenar `c` ile `a` arasında çizilir, zincirdeki `b` ile değil.
+
+| Görünüm | Anlamı |
+|---|---|
+| Düz çerçeve | Kalıcı tablo |
+| Kesikli kehribar çerçeve | Geçici tablo (`#`, `##`, `@`) |
+| Noktalı mor çerçeve | CTE |
+| Kesikli mavi çerçeve | Türetilmiş tablo |
+| Düz çizgi | `JOIN` — türü ve koşulu yazılır |
+| Kesikli kehribar çizgi | `WHERE` ile kurulmuş örtük birleştirme |
+| Noktalı ince çizgi | Alt sorgu korelasyonu |
+| Kalın kesikli kırmızı | Koşulsuz `JOIN` — kartezyen çarpım |
+| Noktalı mor ok | Veri akışı: CTE, türetilmiş tablo, `INSERT`/`SELECT INTO` hedefi |
+
 ### Araçlar
 
 | Araç | Ne yapar |
@@ -96,6 +120,7 @@ komut paleti.
 | `Ctrl+K` | Komut paleti |
 | `Ctrl+T` / `Ctrl+W` | Sekme aç / kapat |
 | `Ctrl+B` | Analiz paneli |
+| `Ctrl+G` | Şemayı görselleştir |
 | `Ctrl+/` | Kısayol listesi |
 
 ---
@@ -121,7 +146,7 @@ Ardından `http://localhost:8000/index.html` (uygulama) ve
 `tests.html`, `index.html` dosyasını gizli bir iframe içinde yükleyip motoru
 `iframe.contentWindow.SQL` üzerinden çağırır — kod kopyalanmaz, `eval` kullanılmaz.
 
-Her fixture üç ayrı kontrolden geçer:
+Biçimlendirici fixture'ları üç ayrı kontrolden geçer:
 
 1. **Beklenen çıktı** — bilinen girdi/çıktı çiftleri
 2. **Değişmezlik** — `format(format(x)) === format(x)`, biçimlendirme kararlı olmalı
@@ -129,7 +154,11 @@ Her fixture üç ayrı kontrolden geçer:
    biçimlendirme sorgunun anlamını değiştiremez
 
 Ayrıca her fixture 16 farklı seçenek kombinasyonunda hata atmadan ve kararlı biçimde
-çalışmak zorunda. Yeni bir vaka eklemek için `tests/cases.js` dosyasına bir nesne ekleyin.
+çalışmak zorunda.
+
+Çizge fixture'ları (`GRAPH_CASES`) ayrı çalışır: her sorgu için beklenen düğüm ve kenar
+kümesi sırasız olarak karşılaştırılır. Yeni vaka eklemek için `tests/cases.js` dosyasına
+bir nesne ekleyin.
 
 ### Dosya yapısı
 
@@ -175,7 +204,10 @@ panel reporting query metrics, an outline, referenced tables and risk warnings
 (`UPDATE`/`DELETE` without `WHERE`, `SELECT *`, cartesian joins, `NOT IN` NULL traps,
 non-sargable predicates, leading wildcards). Tools for Excel→`IN` lists, `VALUES`/temp
 tables, query diffing, code-string escaping, parameterization, token-safe renaming and
-export. A library that writes saved queries as real `.sql` files to a folder on disk.
+export. An interactive SVG diagram (**Görselleştir**, `Ctrl+G`) of the query's tables and
+their relationships, with draggable nodes, zoom and pan, and SVG download — edges are
+resolved from the aliases in `ON` and `WHERE` conditions rather than assumed from join
+order. A library that writes saved queries as real `.sql` files to a folder on disk.
 
 **Development.** No build. Clone, edit `index.html`, run `python3 -m http.server 8000`
 and open `localhost:8000`. Tests live in `tests.html`; every fixture is checked for
