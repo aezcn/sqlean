@@ -1,0 +1,5211 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="T-SQL sorgu biçimlendirici. Tamamen tarayıcıda çalışır, hiçbir veri dışarı çıkmaz.">
+<title>SQL Föy — T-SQL Sorgu Biçimlendirici</title>
+<style>
+/* ============================================================
+   TASARIM TOKENLARI
+   ============================================================ */
+:root{
+  --paper:#E8E9E3;
+  --sheet:#F7F7F3;
+  --sunken:#F1F1EC;
+  --ink:#171C22;
+  --ink-soft:#5C6570;
+  --ink-faint:#A7ADB4;
+  --rule:#C3C6BC;
+  --rule-soft:#DBDDD5;
+  --stamp:#A32B21;
+  --stamp-deep:#8C221A;
+  --field:#FFFFFF;
+  --kw:#25506B;
+  --str:#4A6B2A;
+  --num:#8A5A11;
+  --cmt:#8B9099;
+  --ident:#3E4C59;
+  --func:#6A3E8E;
+  --warn:#8A5A11;
+  --warn-bg:#FBF3E2;
+  --danger:#A32B21;
+  --danger-bg:#FBECEA;
+  --ok:#3E6B3A;
+  --ok-bg:#EEF4EC;
+  --sel:#D5E2EC;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Consolas","DejaVu Sans Mono",monospace;
+  --ui:system-ui,-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  --shadow:0 8px 28px rgba(23,28,34,.18);
+  --fs-code:13px;
+}
+[data-theme="dark"]{
+  --paper:#15181C;
+  --sheet:#1B1F24;
+  --sunken:#22272D;
+  --ink:#E4E7EA;
+  --ink-soft:#98A2AD;
+  --ink-faint:#5C6570;
+  --rule:#333A42;
+  --rule-soft:#2A3037;
+  --stamp:#D4574B;
+  --stamp-deep:#E06A5E;
+  --field:#22272D;
+  --kw:#7FB2D9;
+  --str:#9CC77A;
+  --num:#D9A85C;
+  --cmt:#6E7781;
+  --ident:#B8C2CC;
+  --func:#C08FE0;
+  --warn:#D9A85C;
+  --warn-bg:#2E2820;
+  --danger:#D4574B;
+  --danger-bg:#2E1F1D;
+  --ok:#7FB37A;
+  --ok-bg:#1F2A1E;
+  --sel:#2C3E4C;
+  --shadow:0 8px 28px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);font-family:var(--ui);
+  font-size:14px;display:flex;flex-direction:column;overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--stamp);outline-offset:2px}
+[hidden]{display:none !important}
+::selection{background:var(--sel)}
+
+/* ============================================================
+   BAŞLIK
+   ============================================================ */
+header{
+  padding:10px 16px 8px;border-bottom:1px solid var(--rule);
+  background:var(--paper);flex:0 0 auto;
+}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:15px;font-weight:700;letter-spacing:.22em;text-transform:uppercase}
+.brand .sub{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
+.brand .grow{flex:1}
+.stamp{
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--stamp);border:1px solid var(--stamp);border-radius:2px;padding:3px 8px;
+  white-space:nowrap;
+}
+.icon-btn{
+  border:1px solid var(--rule);background:var(--field);border-radius:2px;
+  width:28px;height:26px;display:inline-grid;place-items:center;cursor:pointer;padding:0;
+  color:var(--ink-soft);
+}
+.icon-btn:hover{border-color:var(--ink);color:var(--ink)}
+.icon-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;
+  stroke-linecap:round;stroke-linejoin:round}
+
+/* ============================================================
+   SEKMELER
+   ============================================================ */
+.tabbar{
+  display:flex;align-items:stretch;gap:0;background:var(--sunken);
+  border-bottom:1px solid var(--rule);flex:0 0 auto;min-height:31px;
+}
+.tabs{display:flex;overflow-x:auto;scrollbar-width:thin}
+.tab{
+  display:flex;align-items:center;gap:7px;padding:0 10px;cursor:pointer;
+  border-right:1px solid var(--rule);background:transparent;font-size:12px;
+  color:var(--ink-soft);white-space:nowrap;max-width:190px;
+}
+.tab:hover{background:var(--sheet)}
+.tab[aria-selected="true"]{background:var(--sheet);color:var(--ink);
+  box-shadow:inset 0 2px 0 var(--stamp)}
+.tab .nm{overflow:hidden;text-overflow:ellipsis}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--stamp);flex:0 0 auto;
+  visibility:hidden}
+.tab.dirty .dot{visibility:visible}
+.tab .x{
+  border:0;background:transparent;cursor:pointer;color:var(--ink-faint);
+  font-size:15px;line-height:1;padding:0 2px;border-radius:2px;
+}
+.tab .x:hover{background:var(--rule);color:var(--ink)}
+#tabNew{
+  border:0;border-right:1px solid var(--rule);background:transparent;cursor:pointer;
+  padding:0 12px;color:var(--ink-soft);font-size:16px;line-height:1;
+}
+#tabNew:hover{background:var(--sheet);color:var(--ink)}
+
+/* ============================================================
+   AYARLAR
+   ============================================================ */
+.controls{
+  display:flex;flex-wrap:wrap;gap:12px 22px;padding:10px 16px;
+  border-bottom:1px solid var(--rule);background:var(--sheet);flex:0 0 auto;
+}
+.controls.collapsed{display:none}
+fieldset{border:0;margin:0;padding:0;display:flex;align-items:center;gap:8px}
+legend{display:contents}
+.lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);
+  white-space:nowrap}
+.seg{display:flex;border:1px solid var(--rule);border-radius:2px;overflow:hidden;
+  background:var(--field)}
+.seg label{position:relative;display:block}
+.seg input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.seg span{display:block;padding:4px 9px;font-size:12px;cursor:pointer;
+  border-right:1px solid var(--rule);white-space:nowrap}
+.seg label:last-child span{border-right:0}
+.seg input:checked + span{background:var(--ink);color:var(--sheet)}
+.seg input:focus-visible + span{outline:2px solid var(--stamp);outline-offset:-2px}
+.checks{display:flex;flex-wrap:wrap;gap:5px 14px;align-items:center}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;
+  white-space:nowrap}
+.chk input{width:14px;height:14px;accent-color:var(--stamp);cursor:pointer;margin:0}
+
+/* ============================================================
+   EYLEMLER
+   ============================================================ */
+.actions{display:flex;flex-wrap:wrap;gap:7px;padding:9px 16px;
+  border-bottom:1px solid var(--rule);align-items:center;flex:0 0 auto}
+.btn{
+  border:1px solid var(--rule);background:var(--field);border-radius:2px;
+  padding:5px 11px;font-size:12px;cursor:pointer;white-space:nowrap;
+}
+.btn:hover{border-color:var(--ink)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--stamp);border-color:var(--stamp);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--stamp-deep);border-color:var(--stamp-deep)}
+.btn kbd{font-family:var(--mono);font-size:10px;opacity:.7;margin-left:5px}
+.sep{width:1px;height:20px;background:var(--rule);margin:0 3px}
+.spacer{flex:1}
+
+/* ============================================================
+   PANOLAR
+   ============================================================ */
+.panes{flex:1 1 auto;display:flex;min-height:0;border-bottom:1px solid var(--rule)}
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1 1 0}
+.pane + .pane{border-left:1px solid var(--rule)}
+.pane-head{
+  display:flex;align-items:center;gap:9px;padding:6px 11px;background:var(--paper);
+  border-bottom:1px solid var(--rule);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);flex:0 0 auto;
+}
+.pane-head .count{margin-left:auto;font-family:var(--mono);letter-spacing:0;
+  text-transform:none;font-size:11px}
+.pane-head .mini{
+  border:1px solid var(--rule);background:var(--field);border-radius:2px;cursor:pointer;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;
+  color:var(--ink-soft);
+}
+.pane-head .mini:hover{border-color:var(--ink);color:var(--ink)}
+
+/* kod alanı: cetvel + metin, ortak ölçüler */
+.code{flex:1 1 auto;display:flex;min-height:0;overflow:auto;background:var(--sheet);
+  position:relative}
+/* girdi tarafında dış kutu kaymaz; textarea kayar, cetvel JS ile eşlenir */
+#inCode{overflow:hidden}
+#inGutter{overflow:hidden}
+#input{overflow:auto}
+.gutter{
+  flex:0 0 auto;padding:12px 9px 12px 12px;text-align:right;color:var(--ink-faint);
+  font-family:var(--mono);font-size:var(--fs-code);line-height:1.55;user-select:none;
+  white-space:pre;min-width:4ch;border-right:1px solid var(--stamp);
+  background:var(--sunken);position:sticky;left:0;z-index:1;
+}
+.gutter .cur{color:var(--stamp);font-weight:700}
+.code pre,.code textarea{
+  margin:0;padding:12px 16px;font-family:var(--mono);font-size:var(--fs-code);
+  line-height:1.55;tab-size:4;flex:1 1 auto;min-width:0;
+}
+.code pre{white-space:pre;overflow:visible}
+.code textarea{
+  border:0;resize:none;background:transparent;white-space:pre;overflow:auto;
+  min-height:100%;
+}
+.code textarea::placeholder{color:var(--ink-faint)}
+
+/* söz dizimi renkleri */
+.k{color:var(--kw);font-weight:600}
+.s{color:var(--str)}
+.n{color:var(--num)}
+.c{color:var(--cmt);font-style:italic}
+.i{color:var(--ident)}
+.f{color:var(--func)}
+.v{color:var(--stamp)}
+mark.hit{background:#F3D57A;color:#171C22;border-radius:1px}
+[data-theme="dark"] mark.hit{background:#7A6420;color:#F0F2F4}
+mark.hit.on{background:var(--stamp);color:#fff}
+
+/* ============================================================
+   YAN PANEL — ANALİZ
+   ============================================================ */
+.side{
+  flex:0 0 300px;display:flex;flex-direction:column;min-height:0;
+  border-left:1px solid var(--rule);background:var(--paper);
+}
+.side[hidden]{display:none}
+.side-body{overflow:auto;padding:0 0 14px}
+.side-sec{border-bottom:1px solid var(--rule-soft);padding:11px 13px}
+.side-sec h3{
+  margin:0 0 8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600;
+}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 10px;font-size:12px}
+.kv dt{color:var(--ink-soft)}
+.kv dd{margin:0;font-family:var(--mono);font-size:11px;text-align:right}
+.notes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.note{
+  display:flex;gap:8px;align-items:flex-start;font-size:12px;line-height:1.4;
+  padding:6px 8px;border-radius:2px;border-left:3px solid transparent;cursor:pointer;
+  background:var(--sunken);text-align:left;border-top:0;border-right:0;border-bottom:0;
+  width:100%;font-family:inherit;color:inherit;
+}
+.note:hover{filter:brightness(.97)}
+[data-theme="dark"] .note:hover{filter:brightness(1.15)}
+.note.risk{border-left-color:var(--danger);background:var(--danger-bg)}
+.note.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.note.info{border-left-color:var(--ink-faint)}
+.note .ln{font-family:var(--mono);font-size:10px;color:var(--ink-soft);flex:0 0 auto;
+  padding-top:1px}
+.tree{list-style:none;margin:0;padding:0;font-size:12px}
+.tree li{margin:0}
+.tree button{
+  display:block;width:100%;text-align:left;border:0;background:transparent;cursor:pointer;
+  padding:3px 6px;border-radius:2px;font-family:var(--mono);font-size:11px;color:inherit;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.tree button:hover{background:var(--sunken)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{
+  font-family:var(--mono);font-size:11px;background:var(--sunken);
+  border:1px solid var(--rule-soft);border-radius:2px;padding:2px 6px;
+}
+.empty{font-size:12px;color:var(--ink-faint);font-style:italic}
+
+/* ============================================================
+   DURUM ÇUBUĞU
+   ============================================================ */
+.status{
+  display:flex;gap:16px;align-items:center;padding:5px 16px;font-family:var(--mono);
+  font-size:11px;color:var(--ink-soft);background:var(--paper);flex:0 0 auto;
+}
+.status .msg{font-family:var(--ui);color:var(--stamp)}
+.status .hint{font-family:var(--ui);margin-left:auto;color:var(--ink-faint)}
+
+/* ============================================================
+   BUL & DEĞİŞTİR
+   ============================================================ */
+.findbar{
+  display:flex;align-items:center;gap:7px;padding:7px 16px;background:var(--sunken);
+  border-bottom:1px solid var(--rule);flex:0 0 auto;flex-wrap:wrap;
+}
+.findbar input[type=text]{
+  border:1px solid var(--rule);background:var(--field);border-radius:2px;
+  padding:4px 8px;font-family:var(--mono);font-size:12px;min-width:150px;
+}
+.findbar .res{font-family:var(--mono);font-size:11px;color:var(--ink-soft);min-width:70px}
+
+/* ============================================================
+   ÇEKMECELER & KİPLER
+   ============================================================ */
+.scrim{position:fixed;inset:0;background:rgba(23,28,34,.32);z-index:40}
+.drawer{
+  position:fixed;top:0;right:0;height:100%;width:400px;max-width:94vw;z-index:50;
+  background:var(--sheet);border-left:1px solid var(--rule);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;
+}
+.drawer-head{
+  display:flex;align-items:center;gap:10px;padding:11px 14px;
+  border-bottom:1px solid var(--rule);background:var(--paper);flex:0 0 auto;
+}
+.drawer-head h2{margin:0;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  font-weight:700}
+.drawer-head .x{margin-left:auto;border:0;background:transparent;cursor:pointer;
+  font-size:19px;line-height:1;color:var(--ink-soft);padding:0 4px}
+.drawer-head .x:hover{color:var(--stamp)}
+.drawer-body{flex:1 1 auto;overflow:auto;padding:13px 14px;display:flex;
+  flex-direction:column;gap:13px}
+.drawer-foot{border-top:1px solid var(--rule);padding:10px 14px;background:var(--paper);
+  display:flex;gap:7px;flex-wrap:wrap;flex:0 0 auto}
+
+.modal{
+  position:fixed;inset:0;z-index:60;display:flex;align-items:flex-start;
+  justify-content:center;padding:9vh 16px 16px;background:rgba(23,28,34,.32);
+}
+.modal-box{
+  background:var(--sheet);border:1px solid var(--rule);border-radius:3px;
+  box-shadow:var(--shadow);width:100%;max-width:560px;display:flex;flex-direction:column;
+  max-height:78vh;overflow:hidden;
+}
+.modal-box.wide{max-width:820px}
+.modal-head{display:flex;align-items:center;gap:10px;padding:11px 14px;
+  border-bottom:1px solid var(--rule);background:var(--paper);flex:0 0 auto}
+.modal-head h2{margin:0;font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+.modal-head .x{margin-left:auto;border:0;background:transparent;cursor:pointer;
+  font-size:19px;line-height:1;color:var(--ink-soft);padding:0 4px}
+.modal-body{overflow:auto;padding:13px 14px}
+
+/* komut paleti */
+#palQ{width:100%;border:0;border-bottom:1px solid var(--rule);background:var(--field);
+  padding:11px 14px;font-size:14px}
+#palList{list-style:none;margin:0;padding:5px;overflow:auto;max-height:52vh}
+#palList li{
+  display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:2px;
+  cursor:pointer;font-size:13px;
+}
+#palList li[aria-selected="true"]{background:var(--sel)}
+#palList .cat{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-faint);margin-left:auto}
+#palList kbd{font-family:var(--mono);font-size:10px;color:var(--ink-soft);
+  border:1px solid var(--rule);border-radius:2px;padding:1px 4px}
+
+/* ============================================================
+   FORM ÖĞELERİ (çekmece içi)
+   ============================================================ */
+.field{display:flex;flex-direction:column;gap:5px}
+.field > label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-soft)}
+.field input[type=text],.field input[type=number],.field select,.field textarea{
+  border:1px solid var(--rule);background:var(--field);border-radius:2px;
+  padding:6px 8px;font-size:13px;width:100%;
+}
+.field textarea{font-family:var(--mono);font-size:12px;resize:vertical;min-height:96px;
+  line-height:1.5}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.row.tight{gap:5px}
+.grow{flex:1;min-width:0}
+.hintline{font-size:11px;color:var(--ink-soft);line-height:1.45}
+
+/* kütüphane listesi */
+.lib-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.lib-item{
+  border:1px solid var(--rule);border-radius:2px;background:var(--field);padding:8px 10px;
+  display:flex;flex-direction:column;gap:5px;
+}
+.lib-item .top{display:flex;align-items:center;gap:7px}
+.lib-item .nm{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.lib-item .meta{font-family:var(--mono);font-size:10px;color:var(--ink-faint);
+  margin-left:auto;white-space:nowrap}
+.lib-item .prev{
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);line-height:1.4;
+  max-height:2.8em;overflow:hidden;white-space:pre-wrap;word-break:break-word;
+}
+.lib-item .ops{display:flex;gap:5px;flex-wrap:wrap}
+.lib-item .ops .btn{padding:3px 8px;font-size:11px}
+.star{border:0;background:transparent;cursor:pointer;color:var(--ink-faint);padding:0;
+  font-size:14px;line-height:1}
+.star.on{color:var(--stamp)}
+.tagline{display:flex;gap:4px;flex-wrap:wrap}
+.tag{
+  font-size:10px;background:var(--sunken);border:1px solid var(--rule-soft);
+  border-radius:9px;padding:1px 7px;color:var(--ink-soft);cursor:pointer;
+}
+.tag.on{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+
+/* araç sekmeleri */
+.tool-tabs{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--rule);
+  border-radius:2px;overflow:hidden;background:var(--field)}
+.tool-tabs button{
+  border:0;border-right:1px solid var(--rule);background:transparent;cursor:pointer;
+  padding:5px 9px;font-size:11px;color:var(--ink-soft);
+}
+.tool-tabs button:last-child{border-right:0}
+.tool-tabs button[aria-selected="true"]{background:var(--ink);color:var(--sheet)}
+.tool-panel{display:flex;flex-direction:column;gap:11px}
+.out-box{
+  border:1px solid var(--rule);background:var(--sunken);border-radius:2px;padding:9px 10px;
+  font-family:var(--mono);font-size:12px;line-height:1.5;white-space:pre-wrap;
+  word-break:break-word;max-height:230px;overflow:auto;
+}
+.diff-line{display:block;padding:0 3px;border-radius:1px}
+.diff-line.add{background:var(--ok-bg);color:var(--ok)}
+.diff-line.del{background:var(--danger-bg);color:var(--danger)}
+.diff-line.same{color:var(--ink-soft)}
+
+/* kısayol tablosu */
+.keys{width:100%;border-collapse:collapse;font-size:12px}
+.keys td{padding:5px 8px;border-bottom:1px solid var(--rule-soft)}
+.keys td:first-child{width:1%;white-space:nowrap}
+.keys kbd{
+  font-family:var(--mono);font-size:11px;border:1px solid var(--rule);
+  border-bottom-width:2px;border-radius:3px;padding:1px 5px;background:var(--field);
+}
+
+/* ============================================================
+   DUYARLI DÜZEN
+   ============================================================ */
+@media (max-width:1100px){
+  .side{flex-basis:260px}
+}
+@media (max-width:860px){
+  .panes{flex-direction:column}
+  .pane + .pane{border-left:0;border-top:1px solid var(--rule)}
+  .side{flex-basis:auto;max-height:38vh;border-left:0;border-top:1px solid var(--rule)}
+  .brand .sub{display:none}
+}
+
+/* ekran okuyucu */
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+@media print{
+  header,.tabbar,.controls,.actions,.status,.findbar,.side,#paneIn{display:none !important}
+  body{overflow:visible;background:#fff}
+  .panes{display:block;border:0}
+}
+</style>
+</head>
+<body data-theme="light">
+
+<header>
+  <div class="brand">
+    <h1>SQL Föy</h1>
+    <span class="sub">T-SQL Sorgu Biçimlendirici</span>
+    <span class="grow"></span>
+    <span class="stamp" id="modeStamp" title="Depolama kipi">yerel</span>
+    <button class="icon-btn" id="btnHelp" title="Kısayollar (Ctrl+/)" aria-label="Kısayollar">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.8 2.8 0 1 1 3.5 2.7c-.6.2-.9.7-.9 1.3v.4"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="icon-btn" id="btnTheme" title="Tema değiştir" aria-label="Tema değiştir">
+      <svg viewBox="0 0 24 24" id="themeIcon"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>
+    </button>
+  </div>
+</header>
+
+<nav class="tabbar" aria-label="Sorgu sekmeleri">
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <button id="tabNew" title="Yeni sekme (Ctrl+T)" aria-label="Yeni sekme">+</button>
+</nav>
+
+<section class="controls" id="controls" aria-label="Biçimlendirme ayarları">
+  <fieldset>
+    <legend class="lbl">Anahtar kelime</legend>
+    <div class="seg" id="segKwCase">
+      <label><input type="radio" name="kwCase" value="upper" checked><span>BÜYÜK</span></label>
+      <label><input type="radio" name="kwCase" value="lower"><span>küçük</span></label>
+      <label><input type="radio" name="kwCase" value="capitalize"><span>Baş harf</span></label>
+      <label><input type="radio" name="kwCase" value="preserve"><span>Dokunma</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Tanımlayıcı</legend>
+    <div class="seg" id="segIdCase">
+      <label><input type="radio" name="idCase" value="preserve" checked><span>Dokunma</span></label>
+      <label><input type="radio" name="idCase" value="lower"><span>küçük</span></label>
+      <label><input type="radio" name="idCase" value="upper"><span>BÜYÜK</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Girinti</legend>
+    <div class="seg" id="segIndent">
+      <label><input type="radio" name="indent" value="2"><span>2</span></label>
+      <label><input type="radio" name="indent" value="4" checked><span>4</span></label>
+      <label><input type="radio" name="indent" value="8"><span>8</span></label>
+      <label><input type="radio" name="indent" value="tab"><span>Tab</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Virgül</legend>
+    <div class="seg" id="segComma">
+      <label><input type="radio" name="comma" value="trailing" checked><span>Sonda</span></label>
+      <label><input type="radio" name="comma" value="leading"><span>Başta</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Satır genişliği</legend>
+    <div class="seg" id="segWidth">
+      <label><input type="radio" name="width" value="0" checked><span>Sınırsız</span></label>
+      <label><input type="radio" name="width" value="80"><span>80</span></label>
+      <label><input type="radio" name="width" value="100"><span>100</span></label>
+      <label><input type="radio" name="width" value="120"><span>120</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Kolon / satır</legend>
+    <div class="seg" id="segCols">
+      <label><input type="radio" name="cols" value="1" checked><span>1</span></label>
+      <label><input type="radio" name="cols" value="2"><span>2</span></label>
+      <label><input type="radio" name="cols" value="4"><span>4</span></label>
+      <label><input type="radio" name="cols" value="fit"><span>Sığdır</span></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend class="lbl">Seçenekler</legend>
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="optAlignAs"> AS hizala</label>
+      <label class="chk"><input type="checkbox" id="optBreakAndOr" checked> AND/OR kır</label>
+      <label class="chk"><input type="checkbox" id="optOnNewLine" checked> ON yeni satır</label>
+      <label class="chk"><input type="checkbox" id="optExpandCase" checked> CASE aç</label>
+      <label class="chk"><input type="checkbox" id="optExpandIn"> IN aç</label>
+      <label class="chk"><input type="checkbox" id="optBlankBetween" checked> Boş satır</label>
+      <label class="chk"><input type="checkbox" id="optParenSpacing"> Parantez boşluğu</label>
+    </div>
+  </fieldset>
+</section>
+
+<div class="actions">
+  <button class="btn primary" id="btnFormat">Biçimlendir<kbd>Ctrl+↵</kbd></button>
+  <button class="btn" id="btnMinify">Tek satıra indir</button>
+  <button class="btn" id="btnStrip">Yorumları sil</button>
+  <span class="sep"></span>
+  <button class="btn" id="btnCopy">Kopyala</button>
+  <button class="btn" id="btnDownload">.sql indir</button>
+  <span class="sep"></span>
+  <button class="btn" id="btnLib">Kütüphane</button>
+  <button class="btn" id="btnTools">Araçlar</button>
+  <span class="sep"></span>
+  <button class="btn" id="btnOpen">Dosya aç</button>
+  <button class="btn" id="btnSample">Örnek</button>
+  <button class="btn" id="btnClear">Temizle</button>
+  <input type="file" id="filePick" accept=".sql,.txt" hidden>
+  <span class="spacer"></span>
+  <label class="chk"><input type="checkbox" id="optLive" checked> Canlı</label>
+  <label class="chk"><input type="checkbox" id="optSide" checked> Analiz</label>
+  <button class="btn" id="btnToggleOpts" title="Ayarları gizle/göster">Ayarlar</button>
+</div>
+
+<div class="findbar" id="findbar" hidden>
+  <span class="lbl">Bul</span>
+  <input type="text" id="findQ" placeholder="aranan…" aria-label="Aranan metin">
+  <span class="lbl">Değiştir</span>
+  <input type="text" id="findR" placeholder="yeni…" aria-label="Yeni metin">
+  <label class="chk"><input type="checkbox" id="findCase"> Aa</label>
+  <label class="chk"><input type="checkbox" id="findRe"> .*</label>
+  <span class="res" id="findRes">0 / 0</span>
+  <button class="btn" id="findPrev" title="Önceki">↑</button>
+  <button class="btn" id="findNext" title="Sonraki">↓</button>
+  <button class="btn" id="findRepl">Değiştir</button>
+  <button class="btn" id="findReplAll">Tümü</button>
+  <button class="btn" id="findClose" title="Kapat (Esc)">×</button>
+</div>
+
+<main class="panes">
+  <section class="pane" id="paneIn" aria-label="Giriş">
+    <div class="pane-head">
+      <span>Girdi</span>
+      <button class="mini" id="btnPaste" title="Panodan yapıştır">Yapıştır</button>
+      <span class="count" id="inCount">0 satır</span>
+    </div>
+    <div class="code" id="inCode">
+      <div class="gutter" id="inGutter" aria-hidden="true">1</div>
+      <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off"
+        autocorrect="off" wrap="off" aria-label="SQL girdisi"
+        placeholder="SQL sorgunuzu buraya yapıştırın…"></textarea>
+    </div>
+  </section>
+
+  <section class="pane" id="paneOut" aria-label="Çıktı">
+    <div class="pane-head">
+      <span>Föy</span>
+      <button class="mini" id="btnSwap" title="Çıktıyı girdiye taşı">↰ Girdiye al</button>
+      <span class="count" id="outCount">0 satır</span>
+    </div>
+    <div class="code" id="outCode">
+      <div class="gutter" id="outGutter" aria-hidden="true">1</div>
+      <pre id="output" tabindex="0" aria-label="Biçimlendirilmiş SQL"></pre>
+    </div>
+  </section>
+
+  <aside class="side" id="side" aria-label="Analiz">
+    <div class="pane-head">
+      <span>Analiz</span>
+      <span class="count" id="anTime"></span>
+    </div>
+    <div class="side-body">
+      <div class="side-sec">
+        <h3>Ölçümler</h3>
+        <dl class="kv" id="anStats"></dl>
+      </div>
+      <div class="side-sec">
+        <h3>Uyarılar</h3>
+        <ul class="notes" id="anNotes"></ul>
+      </div>
+      <div class="side-sec">
+        <h3>Ana hat</h3>
+        <ul class="tree" id="anOutline"></ul>
+      </div>
+      <div class="side-sec">
+        <h3>Tablolar</h3>
+        <div class="chips" id="anTables"></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="status">
+  <span id="stStats">Hazır</span>
+  <span class="msg" id="stMsg" role="status" aria-live="polite"></span>
+  <span class="hint">Ctrl+K komut paleti · Ctrl+/ kısayollar</span>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+
+<!-- ==================== KÜTÜPHANE ÇEKMECESİ ==================== -->
+<aside class="drawer" id="drawerLib" hidden role="dialog" aria-modal="true"
+       aria-labelledby="libTitle">
+  <div class="drawer-head">
+    <h2 id="libTitle">Kütüphane</h2>
+    <button class="x" data-close="drawerLib" aria-label="Kapat">&times;</button>
+  </div>
+  <div class="drawer-body">
+    <div class="field" id="libFsRow">
+      <label>Disk klasörü</label>
+      <div class="row">
+        <button class="btn" id="libConnect">Klasör bağla</button>
+        <button class="btn" id="libDisconnect" hidden>Bağlantıyı kes</button>
+        <button class="btn" id="libReload">Yenile</button>
+      </div>
+      <div class="hintline" id="libFsStatus">Bağlı değil — kayıtlar tarayıcıda tutuluyor.</div>
+    </div>
+
+    <div class="field">
+      <label for="libName">Bu sorguyu kaydet</label>
+      <div class="row">
+        <input type="text" id="libName" class="grow" placeholder="Sorgu adı…">
+        <button class="btn primary" id="libSave">Kaydet</button>
+      </div>
+      <input type="text" id="libTags" placeholder="etiketler: rapor, muhasebe">
+    </div>
+
+    <div class="field">
+      <label for="libFilter">Ara</label>
+      <input type="text" id="libFilter" placeholder="ad, etiket veya içerik…">
+      <div class="tagline" id="libTagCloud"></div>
+    </div>
+
+    <ul class="lib-list" id="libList"></ul>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn" id="libExport">JSON indir</button>
+    <button class="btn" id="libImport">JSON içe aktar</button>
+    <input type="file" id="libFile" accept=".json" hidden>
+    <span class="spacer"></span>
+    <span class="hintline" id="libCount"></span>
+  </div>
+</aside>
+
+<!-- ==================== ARAÇLAR ÇEKMECESİ ==================== -->
+<aside class="drawer" id="drawerTools" hidden role="dialog" aria-modal="true"
+       aria-labelledby="toolsTitle">
+  <div class="drawer-head">
+    <h2 id="toolsTitle">Araçlar</h2>
+    <button class="x" data-close="drawerTools" aria-label="Kapat">&times;</button>
+  </div>
+  <div class="drawer-body">
+    <div class="tool-tabs" id="toolTabs" role="tablist">
+      <button role="tab" data-tool="in" aria-selected="true">Excel → IN</button>
+      <button role="tab" data-tool="values">IN → VALUES</button>
+      <button role="tab" data-tool="diff">Karşılaştır</button>
+      <button role="tab" data-tool="code">Kod stringi</button>
+      <button role="tab" data-tool="param">Parametre</button>
+      <button role="tab" data-tool="rename">Yeniden adlandır</button>
+      <button role="tab" data-tool="export">Dışa aktar</button>
+    </div>
+    <div id="toolPanels"></div>
+  </div>
+</aside>
+
+<!-- ==================== KOMUT PALETİ ==================== -->
+<div class="modal" id="palette" hidden role="dialog" aria-modal="true" aria-label="Komut paleti">
+  <div class="modal-box">
+    <input type="text" id="palQ" placeholder="Komut ara…" autocomplete="off"
+           aria-label="Komut ara" role="combobox" aria-expanded="true" aria-controls="palList">
+    <ul id="palList" role="listbox"></ul>
+  </div>
+</div>
+
+<!-- ==================== KISAYOLLAR ==================== -->
+<div class="modal" id="helpModal" hidden role="dialog" aria-modal="true"
+     aria-labelledby="helpTitle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2 id="helpTitle">Kısayollar</h2>
+      <button class="x" data-close="helpModal" aria-label="Kapat">&times;</button>
+    </div>
+    <div class="modal-body">
+      <table class="keys">
+        <tbody>
+          <tr><td><kbd>Ctrl</kbd> <kbd>↵</kbd></td><td>Biçimlendir</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>M</kbd></td><td>Tek satıra indir</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>S</kbd></td><td>Kütüphaneye kaydet</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>F</kbd></td><td>Bul &amp; değiştir</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>K</kbd></td><td>Komut paleti</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>T</kbd></td><td>Yeni sekme</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>W</kbd></td><td>Sekmeyi kapat</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>1…9</kbd></td><td>Sekmeye geç</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>C</kbd></td><td>Çıktıyı kopyala</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>B</kbd></td><td>Analiz panelini aç/kapat</td></tr>
+          <tr><td><kbd>Ctrl</kbd> <kbd>/</kbd></td><td>Bu pencere</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Açık pencereyi kapat</td></tr>
+        </tbody>
+      </table>
+      <p class="hintline" style="margin-top:12px">
+        Mac'te <kbd>Ctrl</kbd> yerine <kbd>⌘</kbd> da çalışır.
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     KATMAN 1 — SQL.Lex : TOKENIZER
+     T-SQL kaynak metnini konum bilgili token dizisine çevirir.
+     Hiçbir zaman hata atmaz; tanınmayan karakter 'other' olur.
+     ============================================================ -->
+<script>
+window.SQL = window.SQL || {};
+(function (SQL) {
+  'use strict';
+
+  /* ---------- Anahtar kelimeler ---------- */
+  var KEYWORDS = new Set(('SELECT|FROM|WHERE|GROUP|ORDER|BY|HAVING|INSERT|INTO|VALUES|UPDATE|SET|' +
+    'DELETE|WITH|AS|ON|AND|OR|NOT|NULL|IS|IN|EXISTS|BETWEEN|LIKE|ESCAPE|CASE|WHEN|THEN|ELSE|END|' +
+    'JOIN|INNER|LEFT|RIGHT|FULL|OUTER|CROSS|APPLY|UNION|ALL|ANY|SOME|EXCEPT|INTERSECT|DISTINCT|' +
+    'TOP|PERCENT|TIES|ASC|DESC|OVER|PARTITION|ROWS|RANGE|UNBOUNDED|PRECEDING|FOLLOWING|CURRENT|ROW|' +
+    'ROLLUP|CUBE|GROUPING|SETS|NULLS|FIRST|LAST|ONLY|OFFSET|FETCH|NEXT|' +
+    'DECLARE|EXEC|EXECUTE|PROCEDURE|PROC|FUNCTION|RETURN|RETURNS|CREATE|ALTER|DROP|TRUNCATE|' +
+    'TABLE|VIEW|INDEX|SEQUENCE|SYNONYM|TRIGGER|TYPE|SCHEMA|DATABASE|' +
+    'PRIMARY|FOREIGN|KEY|CONSTRAINT|DEFAULT|IDENTITY|UNIQUE|CHECK|REFERENCES|CASCADE|' +
+    'CLUSTERED|NONCLUSTERED|INCLUDE|FILLFACTOR|REBUILD|REORGANIZE|' +
+    'BEGIN|COMMIT|ROLLBACK|SAVE|TRANSACTION|TRAN|TRY|CATCH|THROW|RAISERROR|' +
+    'IF|WHILE|BREAK|CONTINUE|GOTO|PRINT|GO|USE|WAITFOR|DELAY|CHECKPOINT|' +
+    'MERGE|USING|MATCHED|TARGET|SOURCE|OUTPUT|INSERTED|DELETED|PIVOT|UNPIVOT|' +
+    'CURSOR|OPEN|CLOSE|DEALLOCATE|SCROLL|STATIC|KEYSET|DYNAMIC|FORWARD_ONLY|FAST_FORWARD|' +
+    'LOCAL|GLOBAL|READ_ONLY|OPTION|RECOMPILE|MAXDOP|OPTIMIZE|HINT|FORCESEEK|' +
+    'NOLOCK|READUNCOMMITTED|READPAST|UPDLOCK|HOLDLOCK|ROWLOCK|TABLOCK|TABLOCKX|SERIALIZABLE|' +
+    'CAST|CONVERT|TRY_CAST|TRY_CONVERT|COLLATE|WITHIN|FILTER|' +
+    'INT|INTEGER|BIGINT|SMALLINT|TINYINT|BIT|DECIMAL|NUMERIC|FLOAT|REAL|MONEY|SMALLMONEY|' +
+    'CHAR|NCHAR|VARCHAR|NVARCHAR|TEXT|NTEXT|SYSNAME|' +
+    'DATE|DATETIME|DATETIME2|DATETIMEOFFSET|SMALLDATETIME|TIME|TIMESTAMP|' +
+    'UNIQUEIDENTIFIER|VARBINARY|BINARY|IMAGE|XML|HIERARCHYID|GEOGRAPHY|GEOMETRY|SQL_VARIANT|MAX|' +
+    'ADD|COLUMN|RENAME|GRANT|REVOKE|DENY|TO|' +
+    'NOCOUNT|XACT_ABORT|ANSI_NULLS|QUOTED_IDENTIFIER|IDENTITY_INSERT|OFF|' +
+    'FILEGROUP|TEXTIMAGE_ON|DATA_COMPRESSION|PAGE|NONE|' +
+    'INSTEAD|AFTER|FOR|EACH|STATEMENT|DISABLE|ENABLE').split('|'));
+
+  /* Çok kelimeli kalıplar — uzun olan önce denenir */
+  var PHRASES = new Set([
+    'GROUP BY', 'ORDER BY', 'PARTITION BY', 'INSERT INTO', 'DELETE FROM', 'WITHIN GROUP',
+    'UNION ALL', 'INNER JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'RIGHT JOIN',
+    'RIGHT OUTER JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'CROSS JOIN', 'INNER HASH JOIN',
+    'CROSS APPLY', 'OUTER APPLY', 'TRUNCATE TABLE', 'CREATE TABLE', 'CREATE OR ALTER',
+    'CREATE VIEW', 'CREATE PROCEDURE', 'CREATE PROC', 'CREATE FUNCTION', 'CREATE TYPE',
+    'CREATE INDEX', 'CREATE UNIQUE INDEX', 'CREATE CLUSTERED INDEX', 'ALTER TABLE',
+    'ALTER PROCEDURE', 'ALTER VIEW', 'ALTER FUNCTION', 'ALTER INDEX',
+    'DROP TABLE', 'DROP VIEW', 'DROP PROCEDURE', 'DROP INDEX', 'DROP FUNCTION',
+    'BEGIN TRY', 'BEGIN CATCH', 'END TRY', 'END CATCH', 'ELSE IF',
+    'BEGIN TRANSACTION', 'BEGIN TRAN', 'COMMIT TRANSACTION', 'COMMIT TRAN',
+    'ROLLBACK TRANSACTION', 'ROLLBACK TRAN', 'SAVE TRANSACTION', 'MERGE INTO',
+    'WHEN MATCHED', 'WHEN NOT MATCHED', 'NOT MATCHED', 'BY TARGET', 'BY SOURCE',
+    'FETCH NEXT', 'ORDER BY', 'IS NULL', 'IS NOT NULL', 'NOT IN', 'NOT EXISTS',
+    'NOT LIKE', 'NOT BETWEEN', 'PRIMARY KEY', 'FOREIGN KEY', 'DEFAULT VALUES',
+    'GROUPING SETS', 'UNBOUNDED PRECEDING', 'UNBOUNDED FOLLOWING', 'CURRENT ROW',
+    'ROWS BETWEEN', 'RANGE BETWEEN', 'FOR XML', 'FOR JSON', 'OPTION RECOMPILE',
+    'SET NOCOUNT', 'SET XACT_ABORT', 'SET IDENTITY_INSERT', 'INSTEAD OF',
+    'NULLS FIRST', 'NULLS LAST', 'ON DELETE', 'ON UPDATE', 'READ ONLY'
+  ]);
+
+  /* '(' geldiğinde fonksiyon çağrısı SAYILMAYAN kelimeler */
+  var NON_FUNC = new Set(['IN', 'VALUES', 'EXISTS', 'ON', 'AND', 'OR', 'NOT', 'BETWEEN',
+    'CASE', 'WHEN', 'THEN', 'ELSE', 'RETURNS', 'WITH', 'SELECT', 'FROM', 'WHERE', 'HAVING',
+    'INTO', 'USING', 'UNION', 'BY', 'AS', 'ALL', 'ANY', 'SOME', 'TABLE', 'IF', 'WHILE',
+    'PIVOT', 'UNPIVOT', 'OVER', 'GROUP', 'ORDER', 'PARTITION', 'WITHIN', 'FILTER',
+    'EXCEPT', 'INTERSECT', 'PRIMARY', 'FOREIGN', 'UNIQUE', 'CHECK', 'CONSTRAINT',
+    'INDEX', 'KEY', 'DEFAULT', 'REFERENCES', 'INCLUDE', 'RETURN', 'IS', 'LIKE',
+    'DECLARE', 'EXEC', 'EXECUTE', 'SET', 'UPDATE', 'DELETE', 'INSERT', 'MERGE',
+    'PRINT', 'ELSE IF', 'GROUP BY', 'ORDER BY', 'PARTITION BY', 'NOT IN', 'NOT EXISTS']);
+
+  /* Yerleşik fonksiyonlar — '(' öncesinde boşluk olsa da fonksiyon sayılırlar
+     ve anahtar kelime büyük/küçük harf kuralına uyarlar. */
+  var FUNCTIONS = new Set(('COUNT|COUNT_BIG|SUM|AVG|MIN|MAX|STDEV|STDEVP|VAR|VARP|' +
+    'ROW_NUMBER|RANK|DENSE_RANK|NTILE|LAG|LEAD|FIRST_VALUE|LAST_VALUE|PERCENT_RANK|' +
+    'CUME_DIST|PERCENTILE_CONT|PERCENTILE_DISC|STRING_AGG|STRING_SPLIT|' +
+    'CAST|CONVERT|TRY_CAST|TRY_CONVERT|TRY_PARSE|PARSE|' +
+    'ISNULL|COALESCE|NULLIF|IIF|CHOOSE|CASE|' +
+    'LEN|DATALENGTH|SUBSTRING|CHARINDEX|PATINDEX|REPLACE|STUFF|REVERSE|' +
+    'LTRIM|RTRIM|TRIM|UPPER|LOWER|LEFT|RIGHT|REPLICATE|SPACE|CONCAT|CONCAT_WS|' +
+    'FORMAT|STR|QUOTENAME|UNICODE|ASCII|CHAR|NCHAR|SOUNDEX|DIFFERENCE|' +
+    'GETDATE|GETUTCDATE|SYSDATETIME|SYSUTCDATETIME|SYSDATETIMEOFFSET|' +
+    'DATEADD|DATEDIFF|DATEDIFF_BIG|DATEPART|DATENAME|DAY|MONTH|YEAR|EOMONTH|' +
+    'DATEFROMPARTS|DATETIMEFROMPARTS|TIMEFROMPARTS|SWITCHOFFSET|TODATETIMEOFFSET|' +
+    'ABS|ROUND|FLOOR|CEILING|POWER|SQRT|SQUARE|EXP|LOG|LOG10|SIGN|RAND|PI|' +
+    'NEWID|NEWSEQUENTIALID|SCOPE_IDENTITY|IDENT_CURRENT|OBJECT_ID|OBJECT_NAME|' +
+    'ERROR_MESSAGE|ERROR_NUMBER|ERROR_SEVERITY|ERROR_STATE|ERROR_LINE|ERROR_PROCEDURE|' +
+    'ISNUMERIC|ISDATE|ISJSON|JSON_VALUE|JSON_QUERY|JSON_MODIFY|OPENJSON|' +
+    'GROUPING|GROUPING_ID|CHECKSUM|BINARY_CHECKSUM|HASHBYTES|COMPRESS|DECOMPRESS|' +
+    'SESSION_USER|SYSTEM_USER|CURRENT_USER|CURRENT_TIMESTAMP|USER_NAME|SUSER_SNAME|' +
+    'DB_NAME|SCHEMA_NAME|APP_NAME|HOST_NAME|SERVERPROPERTY').split('|'));
+
+  /* ---------- Sözcük düzeyi kalıplar (sticky) ---------- */
+  var RE = {
+    ws:           /[ \t\r\n\f\v]+/y,
+    lineComment:  /--[^\n]*/y,
+    blockComment: /\/\*(?:[^*]|\*(?!\/))*\*\//y,
+    blockOpen:    /\/\*[\s\S]*/y,
+    string:       /[NnBb]?'(?:''|[^'])*'/y,
+    stringOpen:   /[NnBb]?'[\s\S]*/y,
+    dquote:       /"(?:""|[^"])*"/y,
+    dquoteOpen:   /"[\s\S]*/y,
+    bracket:      /\[(?:\]\]|[^\]])*\]/y,
+    bracketOpen:  /\[[\s\S]*/y,
+    number:       /(?:0[xX][0-9a-fA-F]+|\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?)/y,
+    variable:     /(?:@@|@|#{1,2})[A-Za-z_À-ɏ][A-Za-z0-9_$#@À-ɏ]*/y,
+    word:         /[A-Za-z_À-ɏ][A-Za-z0-9_$#@À-ɏ]*/y,
+    op:           /(?:<>|!=|!<|!>|>=|<=|\|\||::|\+=|-=|\*=|\/=|%=|&=|\^=|\|=|=|<|>|\+|-|\*|\/|%|&|\||\^|~)/y,
+    punc:         /[,;().]/y
+  };
+
+  function at(re, s, i) { re.lastIndex = i; var m = re.exec(s); return m ? m[0] : null; }
+
+  /**
+   * @param {string} sql
+   * @returns {{tokens:Array, lines:number, issues:Array}}
+   */
+  function tokenize(sql) {
+    var toks = [], issues = [];
+    var i = 0, n = sql.length, line = 1, nl = 0, spaced = false;
+
+    function push(type, value, extra) {
+      var t = {
+        type: type, value: value, up: null,
+        start: i, end: i + value.length, line: line,
+        nl: nl, spaced: spaced
+      };
+      if (extra) for (var k in extra) t[k] = extra[k];
+      toks.push(t);
+      nl = 0; spaced = false;
+      return t;
+    }
+    function advance(m) {
+      var brk = m.split('\n').length - 1;
+      if (brk) line += brk;
+      i += m.length;
+    }
+
+    while (i < n) {
+      var m;
+
+      if ((m = at(RE.ws, sql, i))) {
+        var brk = m.split('\n').length - 1;
+        nl += brk; spaced = true;
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.lineComment, sql, i))) {
+        push('comment', m.replace(/[ \t]+$/, ''), { block: false, own: nl > 0 || toks.length === 0 });
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.blockComment, sql, i))) {
+        push('comment', m, { block: true, own: nl > 0 || toks.length === 0 });
+        advance(m);
+        continue;
+      }
+      if (sql[i] === '/' && sql[i + 1] === '*') {
+        m = at(RE.blockOpen, sql, i);
+        push('comment', m, { block: true, own: nl > 0, unterminated: true });
+        issues.push({ kind: 'unterminated-comment', line: line,
+                      text: 'Kapanmamış blok yorum (/* ... */ eksik).' });
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.string, sql, i))) { push('string', m); advance(m); continue; }
+      if (sql[i] === "'" || (/[NnBb]/.test(sql[i]) && sql[i + 1] === "'")) {
+        m = at(RE.stringOpen, sql, i);
+        push('string', m, { unterminated: true });
+        issues.push({ kind: 'unterminated-string', line: line,
+                      text: 'Kapanmamış metin sabiti (tek tırnak eksik).' });
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.bracket, sql, i))) { push('ident', m, { quoted: '[' }); advance(m); continue; }
+      if (sql[i] === '[') {
+        m = at(RE.bracketOpen, sql, i);
+        push('ident', m, { quoted: '[', unterminated: true });
+        issues.push({ kind: 'unterminated-ident', line: line,
+                      text: 'Kapanmamış köşeli parantez tanımlayıcı.' });
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.dquote, sql, i))) { push('ident', m, { quoted: '"' }); advance(m); continue; }
+      if (sql[i] === '"') {
+        m = at(RE.dquoteOpen, sql, i);
+        push('ident', m, { quoted: '"', unterminated: true });
+        issues.push({ kind: 'unterminated-ident', line: line,
+                      text: 'Kapanmamış çift tırnak tanımlayıcı.' });
+        advance(m);
+        continue;
+      }
+
+      if ((m = at(RE.number, sql, i))) { push('number', m); advance(m); continue; }
+      if ((m = at(RE.variable, sql, i))) {
+        var t = push('var', m); t.up = m.toUpperCase();
+        advance(m); continue;
+      }
+      if ((m = at(RE.word, sql, i))) {
+        var w = push('word', m); w.up = m.toUpperCase();
+        advance(m); continue;
+      }
+      if ((m = at(RE.punc, sql, i))) { push('punc', m); advance(m); continue; }
+      if ((m = at(RE.op, sql, i))) { push('op', m); advance(m); continue; }
+
+      push('other', sql[i]); advance(sql[i]);
+    }
+
+    /* Fonksiyon çağrısı işaretle: word + '(' ve NON_FUNC değilse */
+    for (var j = 0; j < toks.length; j++) {
+      var a = toks[j], b = toks[j + 1];
+      if (a.type === 'word' && b && b.type === 'punc' && b.value === '(' &&
+          !NON_FUNC.has(a.up) && (!b.spaced || FUNCTIONS.has(a.up))) {
+        a.func = true;
+      }
+    }
+
+    return { tokens: toks, lines: sql ? sql.split('\n').length : 0, issues: issues };
+  }
+
+  /**
+   * i konumundan başlayan en uzun anahtar kelime kalıbını döndürür.
+   * @returns {{kw:string, len:number}|null}
+   */
+  function matchKeyword(toks, i) {
+    var t = toks[i];
+    if (!t || t.type !== 'word') return null;
+    if (t.func) return null;
+    for (var len = Math.min(3, toks.length - i); len >= 2; len--) {
+      var words = [], ok = true;
+      for (var k = 0; k < len; k++) {
+        var x = toks[i + k];
+        if (!x || x.type !== 'word' || (k > 0 && x.nl > 1)) { ok = false; break; }
+        words.push(x.up);
+      }
+      if (!ok) continue;
+      var phrase = words.join(' ');
+      if (PHRASES.has(phrase)) return { kw: phrase, len: len };
+    }
+    if (KEYWORDS.has(t.up)) return { kw: t.up, len: 1 };
+    return null;
+  }
+
+  /** Yorum olmayan bir sonraki token'ın indeksi */
+  function nextReal(toks, i) {
+    for (var j = i; j < toks.length; j++) if (toks[j].type !== 'comment') return j;
+    return -1;
+  }
+
+  SQL.Lex = {
+    tokenize: tokenize,
+    matchKeyword: matchKeyword,
+    nextReal: nextReal,
+    KEYWORDS: KEYWORDS,
+    PHRASES: PHRASES,
+    NON_FUNC: NON_FUNC,
+    FUNCTIONS: FUNCTIONS
+  };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
+     KATMAN 2 — SQL.Parse : DÜĞÜM AĞACI
+     Tam bir T-SQL grameri değil; biçimlendirme için gereken blok
+     yapısını çıkarır. Tanımadığı yapıyı Raw olarak olduğu gibi
+     geçirir — bu yüzden hiçbir girdide çuvallamaz.
+     ============================================================ -->
+<script>
+(function (SQL) {
+  'use strict';
+
+  var Lex = SQL.Lex;
+
+  /* ---------- Keyword sınıfları ---------- */
+
+  /* Kendi satırında başlayan sorgu yan tümceleri */
+  var CLAUSE = new Set([
+    'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'HAVING', 'ORDER BY',
+    'INSERT INTO', 'INSERT', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM', 'DELETE',
+    'OUTPUT', 'INTO', 'OPTION', 'OFFSET', 'FETCH NEXT', 'FOR XML', 'FOR JSON',
+    'PIVOT', 'UNPIVOT', 'USING', 'MERGE INTO', 'MERGE',
+    'WHEN MATCHED', 'WHEN NOT MATCHED', 'DEFAULT VALUES'
+  ]);
+
+  /* FROM içinde kendi satırında duran birleştirmeler */
+  var JOIN = new Set([
+    'JOIN', 'INNER JOIN', 'LEFT JOIN', 'LEFT OUTER JOIN', 'RIGHT JOIN',
+    'RIGHT OUTER JOIN', 'FULL JOIN', 'FULL OUTER JOIN', 'CROSS JOIN',
+    'CROSS APPLY', 'OUTER APPLY', 'INNER HASH JOIN'
+  ]);
+
+  var SETOP = new Set(['UNION', 'UNION ALL', 'EXCEPT', 'INTERSECT']);
+
+  /* Gövdesi virgülle ayrılmış liste olan yan tümceler */
+  var LIST_CLAUSE = new Set([
+    'SELECT', 'GROUP BY', 'ORDER BY', 'SET', 'VALUES', 'OUTPUT', 'DECLARE'
+  ]);
+
+  /* Gövdesi AND/OR koşulu olan yan tümceler */
+  var COND_CLAUSE = new Set(['WHERE', 'HAVING', 'ON']);
+
+  /* Yeni ifade başlatabilen keyword'ler */
+  var STMT_START = new Set([
+    'SELECT', 'INSERT', 'INSERT INTO', 'UPDATE', 'DELETE', 'DELETE FROM',
+    'MERGE', 'MERGE INTO', 'WITH', 'DECLARE', 'SET', 'EXEC', 'EXECUTE',
+    'PRINT', 'RETURN', 'RAISERROR', 'THROW', 'BREAK', 'CONTINUE', 'GOTO',
+    'WAITFOR', 'USE', 'TRUNCATE TABLE', 'GRANT', 'REVOKE', 'DENY',
+    'CHECKPOINT', 'IF', 'WHILE', 'BEGIN', 'OPEN', 'CLOSE', 'DEALLOCATE', 'FETCH',
+    'CREATE TABLE', 'CREATE VIEW', 'CREATE PROCEDURE', 'CREATE PROC',
+    'CREATE FUNCTION', 'CREATE INDEX', 'CREATE UNIQUE INDEX',
+    'CREATE CLUSTERED INDEX', 'CREATE TYPE', 'CREATE OR ALTER',
+    'ALTER TABLE', 'ALTER PROCEDURE', 'ALTER VIEW', 'ALTER FUNCTION', 'ALTER INDEX',
+    'DROP TABLE', 'DROP VIEW', 'DROP PROCEDURE', 'DROP INDEX', 'DROP FUNCTION',
+    'BEGIN TRANSACTION', 'BEGIN TRAN', 'COMMIT', 'COMMIT TRANSACTION', 'COMMIT TRAN',
+    'ROLLBACK', 'ROLLBACK TRANSACTION', 'ROLLBACK TRAN', 'SAVE TRANSACTION'
+  ]);
+
+  /* Bunlardan sonra gelen keyword yeni ifade başlatmaz — devamdır */
+  var CONTINUES = new Set([
+    'UNION', 'UNION ALL', 'EXCEPT', 'INTERSECT', 'AS', 'INTO', 'THEN', 'ELSE',
+    'AND', 'OR', 'NOT', 'IN', 'NOT IN', 'EXISTS', 'NOT EXISTS', 'WITH',
+    'INSERT INTO', 'INSERT', 'RETURNS', 'BEGIN', 'FOR', 'IS', 'USING', 'ON',
+    'GRANT', 'REVOKE', 'DENY', 'RETURN', 'OUTPUT', 'INSTEAD OF', 'WHEN MATCHED',
+    'WHEN NOT MATCHED', 'NOT MATCHED'
+  ]);
+
+  /* Blok başlatıcılar */
+  var BLOCK_OPEN = { 'BEGIN TRY': 'END TRY', 'BEGIN CATCH': 'END CATCH', 'BEGIN': 'END' };
+
+  /* ---------- Çözümleyici bağlamı ---------- */
+
+  function Ctx(toks, issues) {
+    this.t = toks;
+    this.issues = issues;
+  }
+
+  /** Keyword'ün kaynaktaki özgün yazımı — 'preserve' kipi bunu kullanır */
+  function rawKw(cx, i, len) {
+    var a = [];
+    for (var k = 0; k < len; k++) a.push(cx.t[i + k].value);
+    return a.join(' ');
+  }
+
+  Ctx.prototype.kw = function (i) {
+    return Lex.matchKeyword(this.t, i);
+  };
+
+  /** [from,to) aralığında derinlik 0'da pred'i sağlayan ilk indeks */
+  Ctx.prototype.findTop = function (from, to, pred) {
+    var d = 0;
+    for (var i = from; i < to; i++) {
+      var t = this.t[i];
+      if (t.type === 'punc') {
+        if (t.value === '(') { d++; continue; }
+        if (t.value === ')') { d--; continue; }
+      }
+      if (d === 0 && pred(t, i)) return i;
+    }
+    return -1;
+  };
+
+  /** i konumundaki '(' ile eşleşen ')' indeksi; yoksa to */
+  Ctx.prototype.matchParen = function (i, to) {
+    var d = 0;
+    for (var j = i; j < to; j++) {
+      var t = this.t[j];
+      if (t.type !== 'punc') continue;
+      if (t.value === '(') d++;
+      else if (t.value === ')') { d--; if (d === 0) return j; }
+    }
+    return -1;
+  };
+
+  /* ---------- İfade düzeyi ---------- */
+
+  /**
+   * [from,to) aralığını ifade düğümlerine çevirir.
+   * Üretilen düğümler: Tok, Kw, Comment, Paren, Case
+   */
+  function parseExpr(cx, from, to) {
+    var out = [], i = from;
+    while (i < to) {
+      var t = cx.t[i];
+
+      if (t.type === 'comment') {
+        out.push({ type: 'Comment', t: t, own: !!t.own, line: t.line });
+        i++; continue;
+      }
+
+      if (t.type === 'punc' && t.value === '(') {
+        var close = cx.matchParen(i, to);
+        if (close < 0) {
+          cx.issues.push({ kind: 'unbalanced-paren', line: t.line,
+                           text: 'Kapanmamış parantez.' });
+          out.push({ type: 'Tok', t: t, line: t.line });
+          i++; continue;
+        }
+        out.push(parseParen(cx, i, close, out));
+        i = close + 1;
+        continue;
+      }
+
+      if (t.type === 'punc' && t.value === ')') {
+        cx.issues.push({ kind: 'unbalanced-paren', line: t.line,
+                         text: 'Fazladan kapanış parantezi.' });
+        out.push({ type: 'Tok', t: t, line: t.line });
+        i++; continue;
+      }
+
+      var m = cx.kw(i);
+      if (m && m.kw === 'CASE') {
+        var c = parseCase(cx, i, to);
+        out.push(c.node);
+        i = c.next;
+        continue;
+      }
+
+      if (m) {
+        out.push({ type: 'Kw', kw: m.kw, tokens: cx.t.slice(i, i + m.len), line: t.line });
+        i += m.len;
+        continue;
+      }
+
+      out.push({ type: 'Tok', t: t, line: t.line });
+      i++;
+    }
+    return out;
+  }
+
+  /**
+   * open '(' ... close ')' arasını sınıflandırır.
+   * kind: 'sub' (alt sorgu) | 'func' (fonksiyon argümanları) |
+   *       'over' (pencere tanımı) | 'group' (gruplama/ifade listesi)
+   */
+  function parseParen(cx, open, close, prevNodes) {
+    var innerFrom = open + 1, innerTo = close;
+    var node = { type: 'Paren', kind: 'group', open: cx.t[open], close: cx.t[close],
+                 line: cx.t[open].line, body: null, stmts: null };
+
+    var prev = null;
+    for (var p = prevNodes.length - 1; p >= 0; p--) {
+      if (prevNodes[p].type !== 'Comment') { prev = prevNodes[p]; break; }
+    }
+    if (prev && prev.type === 'Kw' && prev.kw === 'OVER') node.kind = 'over';
+    else if (prev && prev.type === 'Tok' && prev.t.func) {
+      node.kind = 'func';
+      node.fn = prev.t.up;
+    }
+
+    var f = Lex.nextReal(cx.t.slice(0, innerTo), innerFrom);
+    if (f >= innerFrom && f < innerTo) {
+      var m = cx.kw(f);
+      if (m && (m.kw === 'SELECT' || m.kw === 'WITH')) node.kind = 'sub';
+    }
+
+    if (node.kind === 'sub') node.stmts = parseStmts(cx, innerFrom, innerTo);
+    else node.body = parseExpr(cx, innerFrom, innerTo);
+
+    return node;
+  }
+
+  /**
+   * CASE … WHEN … THEN … [ELSE …] END
+   * İç içe CASE'leri derinlik sayacıyla atlar.
+   */
+  function parseCase(cx, from, to) {
+    var node = { type: 'Case', operand: [], whens: [], els: null,
+                 line: cx.t[from].line, closed: false };
+    var i = from + 1;
+    var depth = 0, marks = [];
+
+    /* CASE gövdesinin sınırlarını bul */
+    var end = to;
+    var d = 0;
+    for (var j = from + 1; j < to; j++) {
+      var t = cx.t[j];
+      if (t.type === 'punc') {
+        if (t.value === '(') { d++; continue; }
+        if (t.value === ')') { if (d === 0) { end = j; break; } d--; continue; }
+      }
+      if (d !== 0 || t.type !== 'word') continue;
+      if (t.up === 'CASE') { depth++; continue; }
+      if (t.up === 'END') {
+        if (depth === 0) { end = j; node.closed = true; break; }
+        depth--; continue;
+      }
+      if (depth === 0 && (t.up === 'WHEN' || t.up === 'THEN' || t.up === 'ELSE')) {
+        marks.push({ kw: t.up, i: j });
+      }
+    }
+    if (!node.closed) {
+      cx.issues.push({ kind: 'unclosed-case', line: cx.t[from].line,
+                       text: 'CASE bloğu END ile kapatılmamış.' });
+    }
+
+    /* CASE <operand> WHEN … */
+    var firstMark = marks.length ? marks[0].i : end;
+    if (firstMark > i) node.operand = parseExpr(cx, i, firstMark);
+
+    for (var k = 0; k < marks.length; k++) {
+      var cur = marks[k];
+      var stop = (k + 1 < marks.length) ? marks[k + 1].i : end;
+      if (cur.kw === 'WHEN') {
+        node.whens.push({ when: parseExpr(cx, cur.i + 1, stop), then: [], line: cx.t[cur.i].line });
+      } else if (cur.kw === 'THEN') {
+        if (node.whens.length) node.whens[node.whens.length - 1].then = parseExpr(cx, cur.i + 1, stop);
+      } else if (cur.kw === 'ELSE') {
+        node.els = parseExpr(cx, cur.i + 1, stop);
+      }
+    }
+
+    return { node: node, next: node.closed ? end + 1 : end };
+  }
+
+  /* ---------- Yan tümce düzeyi ---------- */
+
+  /**
+   * Bir sorgu gövdesini ([from,to)) Clause / Join / SetOp düğümlerine böler.
+   */
+  function parseClauses(cx, from, to) {
+    var out = [], i = from;
+
+    /* İlk yan tümceden önceki serbest token'lar (ör. yorumlar) */
+    var firstClause = -1;
+    for (var s = from; s < to; s++) {
+      var mm = cx.kw(s);
+      if (mm && (CLAUSE.has(mm.kw) || JOIN.has(mm.kw) || SETOP.has(mm.kw))) { firstClause = s; break; }
+      if (cx.t[s].type !== 'comment') { firstClause = -1; break; }
+    }
+    if (firstClause > from) {
+      out.push({ type: 'Lead', body: parseExpr(cx, from, firstClause) });
+      i = firstClause;
+    }
+
+    /* Hiç yan tümce yoksa hepsi tek bir Raw parçadır */
+    var anyClause = cx.findTop(i, to, function (t, idx) {
+      var m = cx.kw(idx);
+      return !!(m && (CLAUSE.has(m.kw) || JOIN.has(m.kw) || SETOP.has(m.kw)));
+    });
+    if (anyClause < 0) {
+      if (i < to) out.push({ type: 'Raw', body: parseExpr(cx, i, to) });
+      return out;
+    }
+
+    while (i < to) {
+      var m = cx.kw(i);
+      var kind = null;
+      if (m) {
+        if (SETOP.has(m.kw)) kind = 'setop';
+        else if (JOIN.has(m.kw)) kind = 'join';
+        else if (CLAUSE.has(m.kw)) kind = 'clause';
+      }
+
+      if (!kind) {
+        /* Yan tümce dışında kalan parça */
+        var stop = nextClauseIdx(cx, i + 1, to);
+        out.push({ type: 'Raw', body: parseExpr(cx, i, stop) });
+        i = stop;
+        continue;
+      }
+
+      var bodyFrom = i + m.len;
+      var bodyTo = nextClauseIdx(cx, bodyFrom, to);
+
+      if (kind === 'setop') {
+        out.push({ type: 'SetOp', kw: m.kw, raw: rawKw(cx, i, m.len), line: cx.t[i].line });
+        i = bodyFrom;
+        continue;
+      }
+
+      if (kind === 'join') {
+        /* ON koşulunu ayır */
+        var onIdx = cx.findTop(bodyFrom, bodyTo, function (t, idx) {
+          var mm = cx.kw(idx);
+          return !!(mm && mm.kw === 'ON');
+        });
+        var join = {
+          type: 'Join', kw: m.kw, raw: rawKw(cx, i, m.len), line: cx.t[i].line,
+          source: parseExpr(cx, bodyFrom, onIdx < 0 ? bodyTo : onIdx),
+          on: onIdx < 0 ? null : parseExpr(cx, onIdx + 1, bodyTo)
+        };
+        out.push(join);
+        i = bodyTo;
+        continue;
+      }
+
+      out.push({
+        type: 'Clause', kw: m.kw, raw: rawKw(cx, i, m.len), line: cx.t[i].line,
+        body: parseExpr(cx, bodyFrom, bodyTo)
+      });
+      i = bodyTo;
+    }
+
+    return out;
+  }
+
+  /** Sonraki yan tümce/join/setop keyword'ünün indeksi (derinlik 0) */
+  function nextClauseIdx(cx, from, to) {
+    var idx = cx.findTop(from, to, function (t, i) {
+      var m = cx.kw(i);
+      if (!m) return false;
+      if (m.kw === 'ON') return false; /* JOIN kendi içinde ele alır */
+      return CLAUSE.has(m.kw) || JOIN.has(m.kw) || SETOP.has(m.kw);
+    });
+    return idx < 0 ? to : idx;
+  }
+
+  /* ---------- İfade (statement) düzeyi ---------- */
+
+  function isBlockStart(cx, i) {
+    var m = cx.kw(i);
+    if (!m) return null;
+    if (m.kw === 'BEGIN TRY' || m.kw === 'BEGIN CATCH') return m;
+    if (m.kw === 'BEGIN') {
+      var nx = Lex.nextReal(cx.t, i + 1);
+      if (nx >= 0) {
+        var u = cx.t[nx].up;
+        if (u === 'TRANSACTION' || u === 'TRAN' || u === 'DISTRIBUTED') return null;
+      }
+      return m;
+    }
+    return null;
+  }
+
+  /** BEGIN … END eşleşmesini bulur; kapanış keyword'ünün indeksini döndürür */
+  function matchEnd(cx, from, to, openKw) {
+    var want = BLOCK_OPEN[openKw];
+    var depth = 0;
+    for (var i = from; i < to; i++) {
+      var m = cx.kw(i);
+      if (!m) continue;
+      if (m.kw === 'BEGIN' || m.kw === 'BEGIN TRY' || m.kw === 'BEGIN CATCH') {
+        var b = isBlockStart(cx, i);
+        if (b) { depth++; i += m.len - 1; continue; }
+      }
+      if (m.kw === 'END TRY' || m.kw === 'END CATCH') {
+        if (depth === 0 && m.kw === want) return { at: i, len: m.len };
+        depth--; i += m.len - 1; continue;
+      }
+      if (m.kw === 'END') {
+        /* CASE … END değilse blok kapanışıdır */
+        if (depth === 0 && want === 'END') return { at: i, len: 1 };
+        depth--; continue;
+      }
+      if (m.kw === 'CASE') {
+        /* CASE'in kendi END'ini atla */
+        var cd = 0;
+        for (var j = i; j < to; j++) {
+          var mj = cx.kw(j);
+          if (!mj) continue;
+          if (mj.kw === 'CASE') cd++;
+          else if (mj.kw === 'END') { cd--; if (cd === 0) { i = j; break; } }
+        }
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /** Koşuldan sonra gövdenin başladığı yer (IF / WHILE için) */
+  function bodyStartIdx(cx, from, to) {
+    var d = 0;
+    for (var i = from; i < to; i++) {
+      var t = cx.t[i];
+      if (t.type === 'punc') {
+        if (t.value === '(') { d++; continue; }
+        if (t.value === ')') { d--; continue; }
+        if (t.value === ';' && d === 0) return i;
+      }
+      if (d !== 0) continue;
+      var m = cx.kw(i);
+      if (!m) continue;
+      if (isBlockStart(cx, i)) return i;
+      if (STMT_START.has(m.kw) && m.kw !== 'IF' && m.kw !== 'WHILE') {
+        /* EXISTS(SELECT…) gibi koşul içi yapılar derinlikte kalır */
+        return i;
+      }
+    }
+    return to;
+  }
+
+  /**
+   * [from,to) aralığındaki ifadeleri sırayla çözümler.
+   * @returns {Array} Stmt | Block | If | Comment düğümleri
+   */
+  function parseStmts(cx, from, to) {
+    var out = [], i = from, guard = 0;
+
+    while (i < to) {
+      if (++guard > 100000) break;
+      var t = cx.t[i];
+
+      if (t.type === 'punc' && t.value === ';') {
+        if (out.length) {
+          var last = out[out.length - 1];
+          if (last.type !== 'Comments') last.semi = true;
+        }
+        i++; continue;
+      }
+
+      if (t.type === 'comment' && t.own) {
+        /* Tek başına duran yorum: sonraki ifadeye iliştirilir */
+        var lead = [];
+        while (i < to && cx.t[i].type === 'comment' && cx.t[i].own) {
+          lead.push(cx.t[i]); i++;
+        }
+        if (i >= to) {
+          out.push({ type: 'Comments', tokens: lead });
+        } else {
+          var r0 = parseOneStmt(cx, i, to);
+          r0.node.lead = lead;
+          out.push(r0.node);
+          i = r0.next;
+        }
+        continue;
+      }
+
+      var r = parseOneStmt(cx, i, to);
+      out.push(r.node);
+      i = r.next > i ? r.next : i + 1;
+    }
+
+    return out;
+  }
+
+  function parseOneStmt(cx, from, to) {
+    var m = cx.kw(from);
+
+    /* --- BEGIN … END / BEGIN TRY … END TRY --- */
+    var bs = isBlockStart(cx, from);
+    if (bs) {
+      var innerFrom = from + bs.len;
+      var e = matchEnd(cx, innerFrom, to, bs.kw);
+      var innerTo = e ? e.at : to;
+      if (!e) {
+        cx.issues.push({ kind: 'unclosed-block', line: cx.t[from].line,
+                         text: bs.kw + ' bloğu ' + BLOCK_OPEN[bs.kw] + ' ile kapatılmamış.' });
+      }
+      return {
+        node: {
+          type: 'Block', kw: bs.kw, endKw: BLOCK_OPEN[bs.kw], closed: !!e,
+          raw: rawKw(cx, from, bs.len),
+          endRaw: e ? rawKw(cx, e.at, e.len) : null,
+          line: cx.t[from].line, body: parseStmts(cx, innerFrom, innerTo)
+        },
+        next: e ? e.at + e.len : to
+      };
+    }
+
+    /* --- IF / WHILE --- */
+    if (m && (m.kw === 'IF' || m.kw === 'WHILE' || m.kw === 'ELSE IF')) {
+      var condFrom = from + m.len;
+      var bodyAt = bodyStartIdx(cx, condFrom, to);
+      var node = {
+        type: 'If', kw: m.kw, raw: rawKw(cx, from, m.len), line: cx.t[from].line,
+        cond: parseExpr(cx, condFrom, bodyAt),
+        then: null, els: null
+      };
+      var cur = bodyAt;
+      if (cur < to && !(cx.t[cur].type === 'punc' && cx.t[cur].value === ';')) {
+        var rt = parseOneStmt(cx, cur, to);
+        node.then = rt.node;
+        cur = rt.next;
+      }
+      /* noktalı virgülleri yut */
+      while (cur < to && cx.t[cur].type === 'punc' && cx.t[cur].value === ';') cur++;
+
+      var me = cx.kw(cur);
+      if (me && (me.kw === 'ELSE' || me.kw === 'ELSE IF')) {
+        if (me.kw === 'ELSE IF') {
+          var re2 = parseOneStmt(cx, cur, to);
+          node.els = re2.node; cur = re2.next;
+        } else {
+          var afterElse = cur + me.len;
+          var re = parseOneStmt(cx, afterElse, to);
+          node.els = re.node; cur = re.next;
+        }
+        node.hasElse = true;
+      }
+      return { node: node, next: cur };
+    }
+
+    /* --- ELSE tek başına (eşleşmemiş) --- */
+    if (m && m.kw === 'ELSE') {
+      var r2 = parseOneStmt(cx, from + m.len, to);
+      return { node: { type: 'Else', line: cx.t[from].line, body: r2.node }, next: r2.next };
+    }
+
+    /* --- WITH … CTE --- */
+    if (m && m.kw === 'WITH') {
+      var cte = parseCte(cx, from, to);
+      if (cte) return cte;
+    }
+
+    /* --- Normal ifade --- */
+    var end = stmtEnd(cx, from, to);
+    return {
+      node: { type: 'Stmt', line: cx.t[from].line, body: parseClauses(cx, from, end) },
+      next: end
+    };
+  }
+
+  /**
+   * WITH ad [(kolonlar)] AS ( sorgu ) [, …] <ana sorgu>
+   */
+  function parseCte(cx, from, to) {
+    var items = [], i = from + 1, guard = 0;
+
+    while (i < to && ++guard < 500) {
+      /* ad */
+      var nameTok = null;
+      while (i < to && cx.t[i].type === 'comment') i++;
+      if (i >= to) return null;
+      if (cx.t[i].type !== 'word' && cx.t[i].type !== 'ident') return null;
+      nameTok = cx.t[i]; i++;
+
+      /* isteğe bağlı kolon listesi */
+      var cols = null;
+      while (i < to && cx.t[i].type === 'comment') i++;
+      if (i < to && cx.t[i].type === 'punc' && cx.t[i].value === '(') {
+        var cc = cx.matchParen(i, to);
+        if (cc < 0) return null;
+        cols = parseExpr(cx, i + 1, cc);
+        i = cc + 1;
+      }
+
+      /* AS */
+      while (i < to && cx.t[i].type === 'comment') i++;
+      var ma = cx.kw(i);
+      if (!ma || ma.kw !== 'AS') return null;
+      i += ma.len;
+
+      /* ( sorgu ) */
+      while (i < to && cx.t[i].type === 'comment') i++;
+      if (i >= to || !(cx.t[i].type === 'punc' && cx.t[i].value === '(')) return null;
+      var pc = cx.matchParen(i, to);
+      if (pc < 0) return null;
+      items.push({ name: nameTok, cols: cols, stmts: parseStmts(cx, i + 1, pc),
+                   line: nameTok.line });
+      i = pc + 1;
+
+      /* virgül varsa zincir devam eder */
+      while (i < to && cx.t[i].type === 'comment') i++;
+      if (i < to && cx.t[i].type === 'punc' && cx.t[i].value === ',') { i++; continue; }
+      break;
+    }
+
+    if (!items.length) return null;
+
+    var end = stmtEnd(cx, i, to);
+    return {
+      node: {
+        type: 'Cte', line: cx.t[from].line, items: items,
+        main: i < end ? parseClauses(cx, i, end) : []
+      },
+      next: end
+    };
+  }
+
+  /**
+   * Bir ifadenin nerede bittiğini kestirir: ';' ya da satır başında duran
+   * yeni bir ifade keyword'ü. Devam keyword'lerinden sonra bölmez.
+   */
+  function stmtEnd(cx, from, to) {
+    var d = 0, seen = {};
+    var prevKw = null;
+
+    for (var i = from; i < to; i++) {
+      var t = cx.t[i];
+
+      if (t.type === 'punc') {
+        if (t.value === '(') { d++; continue; }
+        if (t.value === ')') { d--; continue; }
+        if (t.value === ';' && d === 0) return i;
+        if (t.value === ',' && d === 0) { prevKw = ','; continue; }
+        continue;
+      }
+      if (d !== 0 || t.type === 'comment') continue;
+
+      var m = cx.kw(i);
+      if (!m) { if (t.type === 'word') prevKw = null; continue; }
+
+      if (i > from && STMT_START.has(m.kw) && !CONTINUES.has(prevKw) &&
+          !suppressSplit(m.kw, seen, prevKw)) {
+        return i;
+      }
+      seen[m.kw] = true;
+
+      if (m.kw === 'INSERT' || m.kw === 'INSERT INTO') seen.insert = true;
+      if (m.kw === 'UPDATE') seen.update = true;
+      if (m.kw === 'DELETE' || m.kw === 'DELETE FROM') seen.del = true;
+      if (m.kw === 'MERGE' || m.kw === 'MERGE INTO') seen.merge = true;
+      if (m.kw === 'SELECT') seen.select = true;
+      if (m.kw === 'VALUES') seen.values = true;
+
+      /* blok başlarsa ifade orada biter */
+      if (isBlockStart(cx, i) && i > from) return i;
+
+      prevKw = m.kw;
+      i += m.len - 1;
+    }
+    return to;
+  }
+
+  /** Bazı keyword'ler bağlama göre yeni ifade başlatmaz */
+  function suppressSplit(kw, seen, prevKw) {
+    if (kw === 'SELECT' && seen.insert && !seen.select && !seen.values) return true;
+    if (kw === 'SET' && (seen.update || seen.merge)) return true;
+    if (kw === 'DELETE' && seen.merge) return true;
+    if (kw === 'INSERT' && seen.merge) return true;
+    if (kw === 'UPDATE' && seen.merge) return true;
+    if (kw === 'FETCH' && (prevKw === 'OFFSET' || seen['OFFSET'])) return true;
+    if ((kw === 'EXEC' || kw === 'EXECUTE') && seen.insert && !seen.select) return true;
+    if (kw === 'VALUES' && (seen.insert || seen.merge)) return true;
+    if (kw === 'WITH') return true;
+    return false;
+  }
+
+  /* ---------- Batch (GO) ---------- */
+
+  function parseBatches(cx, from, to) {
+    var out = [], start = from;
+    for (var i = from; i < to; i++) {
+      var t = cx.t[i];
+      if (t.type === 'word' && t.up === 'GO' && t.nl > 0) {
+        out.push({ type: 'Batch', body: parseStmts(cx, start, i) });
+        start = i + 1;
+      }
+    }
+    out.push({ type: 'Batch', body: parseStmts(cx, start, to) });
+    return out.filter(function (b, idx) { return b.body.length || idx === 0; });
+  }
+
+  /* ---------- Yardımcılar (yazıcı kullanır) ---------- */
+
+  /** Düğüm listesini üst düzey virgüllerden böler */
+  function splitList(nodes) {
+    var items = [], cur = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'Tok' && n.t.type === 'punc' && n.t.value === ',') {
+        /* "a, -- not" — virgülden sonraki satır sonu yorumu önceki öğenin
+           notudur; öğeye değil, öğenin kuyruğuna iliştirilir ki virgülden
+           sonra yazılabilsin. */
+        var trail = null, j = i + 1;
+        while (j < nodes.length && nodes[j].type === 'Comment' && !nodes[j].own) {
+          (trail = trail || []).push(nodes[j]);
+          j++;
+        }
+        if (trail) { cur.trail = trail; i = j - 1; }
+        items.push(cur); cur = [];
+      } else cur.push(n);
+    }
+    items.push(cur);
+    /* Baştaki/sondaki boş parçaları at */
+    return items.filter(function (x, i) {
+      return x.length || (i > 0 && i < items.length - 1);
+    });
+  }
+
+  /** Düğüm listesini üst düzey AND/OR'lardan böler */
+  function splitCond(nodes) {
+    var parts = [], cur = [], op = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'Kw' && (n.kw === 'AND' || n.kw === 'OR')) {
+        parts.push({ op: op, nodes: cur });
+        op = n.kw; cur = [];
+        continue;
+      }
+      cur.push(n);
+    }
+    parts.push({ op: op, nodes: cur });
+    return parts.filter(function (p) { return p.nodes.length; });
+  }
+
+  /* ---------- Giriş noktası ---------- */
+
+  function parse(sql) {
+    var lex = Lex.tokenize(sql);
+    var cx = new Ctx(lex.tokens, lex.issues.slice());
+    var body;
+    try {
+      body = parseBatches(cx, 0, lex.tokens.length);
+    } catch (err) {
+      /* Beklenmedik durum: her şeyi tek Raw parça yap */
+      cx.issues.push({ kind: 'parse-error', line: 1, text: 'Çözümleme hatası: ' + err.message });
+      body = [{ type: 'Batch', body: [{ type: 'Stmt', line: 1,
+                 body: [{ type: 'Raw', body: parseExpr(cx, 0, lex.tokens.length) }] }] }];
+    }
+    return {
+      type: 'Script', body: body,
+      tokens: lex.tokens, issues: cx.issues, lines: lex.lines
+    };
+  }
+
+  SQL.Parse = {
+    parse: parse,
+    splitList: splitList,
+    splitCond: splitCond,
+    CLAUSE: CLAUSE, JOIN: JOIN, SETOP: SETOP,
+    LIST_CLAUSE: LIST_CLAUSE, COND_CLAUSE: COND_CLAUSE
+  };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
+     KATMAN 3 — SQL.Print : YAZICI
+     Düğüm ağacını seçeneklere göre metne çevirir. Ağaç önceden
+     tamamlandığı için ölçüm gerektiren işler (satır sarma, AS
+     hizalama) burada mümkün.
+     ============================================================ -->
+<script>
+(function (SQL) {
+  'use strict';
+
+  var Lex = SQL.Lex, Parse = SQL.Parse;
+
+  var DEFAULTS = {
+    keywordCase: 'upper',       /* upper | lower | capitalize | preserve */
+    identifierCase: 'preserve', /* preserve | lower | upper            */
+    indentUnit: '    ',
+    commaPosition: 'trailing',  /* trailing | leading                  */
+    columnsPerLine: 1,          /* 1 | 2 | 4 | 'fit'                   */
+    maxWidth: 0,                /* 0 = sınırsız                        */
+    alignAs: false,
+    breakAndOr: true,
+    onNewLine: true,
+    expandCase: true,
+    expandIn: false,
+    blankBetween: true,
+    parenSpacing: false
+  };
+
+  function opts(o) {
+    var r = {};
+    for (var k in DEFAULTS) r[k] = DEFAULTS[k];
+    if (o) for (var j in o) if (o[j] !== undefined) r[j] = o[j];
+    return r;
+  }
+
+  /* ============================================================
+     Metin birleştirici — boşluk kurallarını uygular
+     ============================================================ */
+
+  function Joiner(o) { this.s = ''; this.p = null; this.o = o; }
+
+  Joiner.prototype.gap = function (n) {
+    var p = this.p;
+    if (!p) return false;
+    var pv = p.value, nv = n.value;
+
+    if (nv === ',' || nv === ';') return false;
+    if (nv === '.' || pv === '.') return false;
+    if (nv === ')') return this.o.parenSpacing && pv !== '(';
+    if (pv === '(') return this.o.parenSpacing;
+    if (nv === '(') return !p.func;
+    if (p.unary) return false;
+    return true;
+  };
+
+  Joiner.prototype.text = function (text, info) {
+    if (this.s.length && this.gap(info)) this.s += ' ';
+    this.s += text;
+    this.p = info;
+    return this;
+  };
+
+  Joiner.prototype.tok = function (t, o) {
+    var info = { type: t.type, value: t.value, func: !!t.func };
+    if (t.type === 'op' && (t.value === '-' || t.value === '+')) {
+      var p = this.p;
+      info.unary = !p || p.type === 'op' || p.value === '(' || p.value === ',' ||
+                   (p.kw && p.value !== 'END');
+    }
+    return this.text(tokText(t, o), info);
+  };
+
+  function tokText(t, o) {
+    if (t.type === 'word') {
+      if (t.func) {
+        return caseWord(t.value, Lex.FUNCTIONS.has(t.up) ? o.keywordCase : o.identifierCase);
+      }
+      if (Lex.KEYWORDS.has(t.up)) return caseWord(t.value, o.keywordCase);
+      return caseWord(t.value, o.identifierCase);
+    }
+    return t.value;
+  }
+
+  function caseWord(s, mode) {
+    if (mode === 'upper') return s.toUpperCase();
+    if (mode === 'lower') return s.toLowerCase();
+    if (mode === 'capitalize') return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+    return s;
+  }
+
+  /** Kw düğümünün metni — 'preserve' kipinde özgün token'lar kullanılır */
+  function kwText(n, o) {
+    if (o.keywordCase === 'preserve') {
+      return n.tokens.map(function (t) { return t.value; }).join(' ');
+    }
+    return n.kw.split(' ').map(function (w) { return caseWord(w, o.keywordCase); }).join(' ');
+  }
+
+  /* ============================================================
+     Tek satırda gösterim (ölçüm ve kısa gövdeler için)
+     ============================================================ */
+
+  function inline(nodes, o) {
+    var J = new Joiner(o);
+    putNodes(J, nodes, o);
+    return J.s;
+  }
+
+  function putNodes(J, nodes, o) {
+    for (var i = 0; i < nodes.length; i++) putNode(J, nodes[i], o);
+  }
+
+  function putNode(J, n, o) {
+    switch (n.type) {
+      case 'Tok': J.tok(n.t, o); break;
+      case 'Kw': J.text(kwText(n, o), { type: 'word', value: n.kw, kw: true }); break;
+      case 'Comment': J.text(n.t.value, { type: 'comment', value: n.t.value }); break;
+      case 'Paren': putParen(J, n, o); break;
+      case 'Case': putCase(J, n, o); break;
+      default: break;
+    }
+  }
+
+  function putParen(J, n, o) {
+    J.text('(', { type: 'punc', value: '(' });
+    if (n.kind === 'sub') J.text(inlineStmts(n.stmts, o), { type: 'word', value: 'x' });
+    else putNodes(J, n.body || [], o);
+    J.text(')', { type: 'punc', value: ')' });
+  }
+
+  function putCase(J, n, o) {
+    J.text(caseKw('CASE', o), { type: 'word', value: 'CASE', kw: true });
+    putNodes(J, n.operand, o);
+    for (var i = 0; i < n.whens.length; i++) {
+      J.text(caseKw('WHEN', o), { type: 'word', value: 'WHEN', kw: true });
+      putNodes(J, n.whens[i].when, o);
+      J.text(caseKw('THEN', o), { type: 'word', value: 'THEN', kw: true });
+      putNodes(J, n.whens[i].then, o);
+    }
+    if (n.els) {
+      J.text(caseKw('ELSE', o), { type: 'word', value: 'ELSE', kw: true });
+      putNodes(J, n.els, o);
+    }
+    if (n.closed) J.text(caseKw('END', o), { type: 'word', value: 'END', kw: true });
+  }
+
+  function caseKw(kw, o) {
+    if (o.keywordCase === 'preserve') return kw;
+    return kw.split(' ').map(function (w) { return caseWord(w, o.keywordCase); }).join(' ');
+  }
+
+  /** Düğümün keyword metni — 'preserve' kipinde kaynaktaki yazım korunur */
+  function kwOf(node, o, alan) {
+    var raw = alan === 'end' ? (node && node.endRaw) : (node && node.raw);
+    if (o.keywordCase === 'preserve' && raw) return raw;
+    return caseKw(alan === 'end' ? node.endKw : node.kw, o);
+  }
+
+  function inlineStmts(stmts, o) {
+    return stmts.map(function (s) { return inlineStmt(s, o); })
+                .filter(Boolean).join(' ');
+  }
+
+  function inlineStmt(s, o) {
+    if (!s) return '';
+    switch (s.type) {
+      case 'Stmt': return inlineClauses(s.body, o) + (s.semi ? ';' : '');
+      case 'Cte': {
+        var parts = [caseKw('WITH', o)];
+        parts.push(s.items.map(function (it) {
+          return tokText(it.name, o) +
+                 (it.cols ? ' (' + inline(it.cols, o) + ')' : '') +
+                 ' ' + caseKw('AS', o) + ' (' + inlineStmts(it.stmts, o) + ')';
+        }).join(', '));
+        if (s.main && s.main.length) parts.push(inlineClauses(s.main, o));
+        return parts.join(' ');
+      }
+      case 'Block':
+        return caseKw(s.kw, o) + ' ' + inlineStmts(s.body, o) +
+               (s.closed ? ' ' + caseKw(s.endKw, o) : '');
+      case 'If': {
+        var t = caseKw(s.kw, o) + ' ' + inline(s.cond, o);
+        if (s.then) t += ' ' + inlineStmt(s.then, o);
+        if (s.els) t += ' ' + caseKw('ELSE', o) + ' ' + inlineStmt(s.els, o);
+        return t;
+      }
+      case 'Else': return caseKw('ELSE', o) + ' ' + inlineStmt(s.body, o);
+      case 'Comments': return s.tokens.map(function (t) { return t.value; }).join(' ');
+      default: return '';
+    }
+  }
+
+  function inlineClauses(clauses, o) {
+    var out = [];
+    for (var i = 0; i < clauses.length; i++) {
+      var c = clauses[i];
+      if (c.type === 'Clause') out.push(kwOf(c, o) + spaceJoin(inline(c.body, o)));
+      else if (c.type === 'Join') {
+        var s = kwOf(c, o) + spaceJoin(inline(c.source, o));
+        if (c.on) s += ' ' + caseKw('ON', o) + ' ' + inline(c.on, o);
+        out.push(s);
+      }
+      else if (c.type === 'SetOp') out.push(kwOf(c, o));
+      else if (c.type === 'Lead' || c.type === 'Raw') out.push(inline(c.body, o));
+    }
+    return out.filter(Boolean).join(' ');
+  }
+
+  function spaceJoin(s) { return s ? ' ' + s : ''; }
+
+  /* ============================================================
+     Satır yazıcı
+     ============================================================ */
+
+  function Out(o) { this.o = o; this.lines = []; }
+
+  Out.prototype.ind = function (l) {
+    var u = this.o.indentUnit, s = '';
+    for (var i = 0; i < Math.max(0, l); i++) s += u;
+    return s;
+  };
+  Out.prototype.line = function (level, text) {
+    if (text === null || text === undefined) return;
+    var body = String(text).replace(/\s+$/, '');
+    if (!body) return;
+    this.lines.push(this.ind(level) + body);
+  };
+  Out.prototype.blank = function () {
+    if (this.lines.length && this.lines[this.lines.length - 1] !== '') this.lines.push('');
+  };
+  Out.prototype.appendToLast = function (suffix) {
+    if (!this.lines.length) { this.lines.push(suffix); return; }
+    var i = this.lines.length - 1;
+    while (i >= 0 && this.lines[i] === '') i--;
+    if (i < 0) { this.lines.push(suffix); return; }
+    this.lines[i] += suffix;
+  };
+  Out.prototype.width = function (level) {
+    var u = this.o.indentUnit === '\t' ? 4 : this.o.indentUnit.length;
+    return level * u;
+  };
+  Out.prototype.fits = function (level, text) {
+    if (!this.o.maxWidth) return true;
+    return this.width(level) + text.length <= this.o.maxWidth;
+  };
+
+  /* ============================================================
+     Kırılma gerektiren yapılar
+     ============================================================ */
+
+  function isBreaker(n, o) {
+    if (!n) return false;
+    if (n.type === 'Case') return !!o.expandCase;
+    if (n.type === 'Paren' && n.kind === 'sub') return true;
+    if (n.type === 'Comment' && !n.t.block) return true;
+    return false;
+  }
+
+  /** Satır yorumu son eleman değilse mutlaka kırılmalı (aksi hâlde kalan metin yorumda kalır) */
+  function hasBreaker(nodes, o) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'Comment' && !n.t.block) { if (i < nodes.length - 1) return true; continue; }
+      if (isBreaker(n, o)) return true;
+      if (o.expandIn && n.type === 'Paren' && n.kind !== 'sub') {
+        var prev = prevReal(nodes, i);
+        if (prev && prev.type === 'Kw' && (prev.kw === 'IN' || prev.kw === 'NOT IN')) {
+          if (Parse.splitList(n.body || []).length > 1) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /** İki parçayı tek boşlukla birleştirir; boş olanları atlar */
+  function glue(a, b) {
+    a = String(a || '').replace(/\s+$/, '');
+    b = String(b || '').replace(/^\s+/, '');
+    if (!a) return b;
+    if (!b) return a;
+    return a + ' ' + b;
+  }
+
+  function prevReal(nodes, i) {
+    for (var j = i - 1; j >= 0; j--) if (nodes[j].type !== 'Comment') return nodes[j];
+    return null;
+  }
+
+  /* ============================================================
+     İfade yazımı (çok satırlı olabilir)
+     ============================================================ */
+
+  /**
+   * nodes'u yazar. prefix ilk satırın başına konur (ör. "SELECT ", "AND ").
+   * suffix son satırın sonuna eklenir (ör. ",").
+   */
+  function emitExpr(P, nodes, level, prefix, suffix) {
+    prefix = prefix || '';
+    suffix = suffix || '';
+    var o = P.o;
+
+    if (!nodes.length) {
+      if (prefix || suffix) P.line(level, (prefix + suffix).replace(/\s+$/, ''));
+      return;
+    }
+
+    var flat = prefix + inline(nodes, o) + suffix;
+    if (!hasBreaker(nodes, o) && P.fits(level, flat)) {
+      P.line(level, flat);
+      return;
+    }
+
+    /* Kırılma noktasına kadar biriktir, sonra o düğümü çok satırlı yaz */
+    var buf = [], head = prefix;
+
+    /** Biriken metni döndürür (sağdaki boşluk kırpılmış) */
+    function flushHead() {
+      var text = (head + inline(buf, o)).replace(/\s+$/, '');
+      buf = []; head = '';
+      return text;
+    }
+
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var isLast = i === nodes.length - 1;
+
+      if (n.type === 'Comment' && !n.t.block) {
+        buf.push(n);
+        P.line(level, flushHead());
+        continue;
+      }
+
+      if (n.type === 'Case' && o.expandCase) {
+        var opTxt = n.operand.length ? ' ' + inline(n.operand, o) : '';
+        P.line(level, glue(flushHead(), caseKw('CASE', o) + opTxt));
+        emitCaseBody(P, n, level + 1);
+        var tail = n.closed ? caseKw('END', o) : '';
+        var rest = nodes.slice(i + 1);
+        P.line(level, glue(tail, rest.length ? inline(rest, o) : '') + suffix);
+        return;
+      }
+
+      if (n.type === 'Paren' && n.kind === 'sub') {
+        P.line(level, glue(flushHead(), '('));
+        emitStmts(P, n.stmts, level + 1, false);
+        var rest2 = nodes.slice(i + 1);
+        P.line(level, glue(')', rest2.length ? inline(rest2, o) : '') + suffix);
+        return;
+      }
+
+      if (o.expandIn && n.type === 'Paren' && n.kind !== 'sub') {
+        var pv = prevReal(nodes, i);
+        if (pv && pv.type === 'Kw' && (pv.kw === 'IN' || pv.kw === 'NOT IN')) {
+          var items = Parse.splitList(n.body || []);
+          if (items.length > 1) {
+            P.line(level, glue(flushHead(), '('));
+            emitItems(P, items, level + 1, null);
+            var rest3 = nodes.slice(i + 1);
+            P.line(level, glue(')', rest3.length ? inline(rest3, o) : '') + suffix);
+            return;
+          }
+        }
+      }
+
+      buf.push(n);
+      if (isLast) P.line(level, flushHead() + suffix);
+    }
+  }
+
+  function emitCaseBody(P, n, level) {
+    var o = P.o;
+    for (var i = 0; i < n.whens.length; i++) {
+      var w = n.whens[i];
+      var text = caseKw('WHEN', o) + ' ' + inline(w.when, o) + ' ' +
+                 caseKw('THEN', o) + ' ' + inline(w.then, o);
+      if (!hasBreaker(w.when, o) && !hasBreaker(w.then, o) && P.fits(level, text)) {
+        P.line(level, text);
+      } else {
+        emitExpr(P, w.when, level, caseKw('WHEN', o) + ' ', '');
+        emitExpr(P, w.then, level + 1, caseKw('THEN', o) + ' ', '');
+      }
+    }
+    if (n.els) emitExpr(P, n.els, level, caseKw('ELSE', o) + ' ', '');
+  }
+
+  /* ============================================================
+     Liste yazımı (SELECT kolonları, GROUP BY, VALUES …)
+     ============================================================ */
+
+  function emitItems(P, items, level, alignCol) {
+    var o = P.o;
+    var lead = o.commaPosition === 'leading';
+    var per = o.columnsPerLine;
+
+    /* Öğelerden biri kırılma gerektiriyorsa (CASE, alt sorgu, satır yorumu)
+       tüm liste satır başına bir öğe olarak yazılır. Aksi hâlde satır yorumu
+       kendisinden sonrakileri yutar. */
+    var anyBreak = false;
+    for (var b = 0; b < items.length; b++) {
+      if (hasBreaker(items[b], o) || items[b].trail) { anyBreak = true; break; }
+    }
+    if (anyBreak) per = 1;
+    else if (per === 'fit') { emitFit(P, items, level); return; }
+    per = parseInt(per, 10) || 1;
+
+    if (per > 1) {
+      for (var g = 0; g < items.length; g += per) {
+        var chunk = items.slice(g, g + per);
+        var isLastChunk = g + per >= items.length;
+        var text = chunk.map(function (it) { return inline(it, o); }).join(', ');
+        P.line(level, text + (isLastChunk ? '' : ','));
+      }
+      return;
+    }
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var last = i === items.length - 1;
+      var pre = lead ? (i === 0 ? '' : ', ') : '';
+      var suf = lead ? '' : (last ? '' : ',');
+      if (item.trail) suf += ' ' + inline(item.trail, o);
+
+      if (alignCol !== null && alignCol !== undefined && !hasBreaker(item, o)) {
+        var sp = splitAs(item);
+        if (sp) {
+          var leftTxt = inline(sp.left, o);
+          var pad = new Array(Math.max(1, alignCol - leftTxt.length + 1)).join(' ');
+          P.line(level, pre + leftTxt + pad + ' ' + caseKw('AS', o) + ' ' +
+                        inline(sp.right, o) + suf);
+          continue;
+        }
+      }
+      emitExpr(P, item, level, pre, suf);
+    }
+  }
+
+  function emitFit(P, items, level) {
+    var o = P.o;
+    var lead = o.commaPosition === 'leading';
+    var limit = o.maxWidth || 1e9;
+    var buf = [], bufLen = P.width(level);
+
+    for (var i = 0; i < items.length; i++) {
+      var txt = inline(items[i], o);
+      var last = i === items.length - 1;
+      var piece = txt + (last ? '' : ',');
+      if (buf.length && bufLen + 1 + piece.length > limit) {
+        P.line(level, buf.join(lead ? ', ' : ' '));
+        buf = []; bufLen = P.width(level);
+      }
+      buf.push(lead && buf.length === 0 && i > 0 ? ', ' + txt + (last ? '' : '') : piece);
+      bufLen += piece.length + 1;
+    }
+    if (buf.length) P.line(level, buf.join(lead ? ' ' : ' '));
+  }
+
+  /** Öğe içinde üst düzey AS varsa sol/sağ olarak böler */
+  function splitAs(item) {
+    for (var i = 0; i < item.length; i++) {
+      if (item[i].type === 'Kw' && item[i].kw === 'AS') {
+        if (i === 0 || i === item.length - 1) return null;
+        return { left: item.slice(0, i), right: item.slice(i + 1) };
+      }
+    }
+    return null;
+  }
+
+  function asAlignColumn(items, o) {
+    if (!o.alignAs || o.columnsPerLine !== 1) return null;
+    var max = 0, found = 0;
+    for (var i = 0; i < items.length; i++) {
+      if (hasBreaker(items[i], o)) continue;
+      var sp = splitAs(items[i]);
+      if (!sp) continue;
+      found++;
+      var w = inline(sp.left, o).length;
+      if (w > max) max = w;
+    }
+    return found > 1 ? max : null;
+  }
+
+  /* ============================================================
+     Koşul yazımı (WHERE / HAVING / ON)
+     ============================================================ */
+
+  function emitCond(P, nodes, level, kwPrefix, contLevel) {
+    var o = P.o;
+    if (contLevel === undefined) contLevel = level + 1;
+    var flat = kwPrefix + inline(nodes, o);
+
+    if (!o.breakAndOr) { emitExpr(P, nodes, level, kwPrefix, ''); return; }
+
+    var parts = Parse.splitCond(nodes);
+    if (parts.length <= 1) { emitExpr(P, nodes, level, kwPrefix, ''); return; }
+    if (!hasBreaker(nodes, o) && P.fits(level, flat) && o.maxWidth) { P.line(level, flat); return; }
+
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i];
+      if (i === 0) emitExpr(P, p.nodes, level, kwPrefix, '');
+      else emitExpr(P, p.nodes, contLevel, caseKw(p.op, o) + ' ', '');
+    }
+  }
+
+  /* ============================================================
+     Yan tümce yazımı
+     ============================================================ */
+
+  /* SELECT'ten sonra listeden önce gelen ekler: DISTINCT, TOP n, PERCENT … */
+  var SELECT_HEAD = new Set(['DISTINCT', 'ALL', 'TOP', 'PERCENT', 'WITH TIES']);
+
+  function peelHead(nodes) {
+    var head = [], i = 0;
+    while (i < nodes.length) {
+      var n = nodes[i];
+      if (n.type === 'Kw' && SELECT_HEAD.has(n.kw)) {
+        head.push(n); i++;
+        if (n.kw === 'TOP') {
+          while (i < nodes.length) {
+            var x = nodes[i];
+            if (x.type === 'Tok' && (x.t.type === 'number' || x.t.type === 'var')) { head.push(x); i++; break; }
+            if (x.type === 'Paren') { head.push(x); i++; break; }
+            break;
+          }
+        }
+        continue;
+      }
+      break;
+    }
+    return { head: head, rest: nodes.slice(i) };
+  }
+
+  function emitClause(P, c, level) {
+    var o = P.o;
+    var kw = kwOf(c, o);
+
+    /* Koşul yan tümceleri */
+    if (Parse.COND_CLAUSE.has(c.kw)) {
+      emitCond(P, c.body, level, kw + ' ');
+      return;
+    }
+
+    /* Liste yan tümceleri */
+    if (Parse.LIST_CLAUSE.has(c.kw)) {
+      var body = c.body, headTxt = kw;
+      if (c.kw === 'SELECT') {
+        var ph = peelHead(body);
+        if (ph.head.length) headTxt = kw + ' ' + inline(ph.head, o);
+        body = ph.rest;
+      }
+      var items = Parse.splitList(body);
+
+      if (!items.length) { P.line(level, headTxt); return; }
+
+      var single = items.length === 1;
+      var flat = headTxt + ' ' + inline(body, o);
+      var breaks = hasBreaker(body, o);
+
+      if (single && !breaks && P.fits(level, flat)) { P.line(level, flat); return; }
+      if (!single && o.columnsPerLine === 'fit' && !breaks && P.fits(level, flat)) {
+        P.line(level, flat); return;
+      }
+      P.line(level, headTxt);
+      emitItems(P, items, level + 1, asAlignColumn(items, o));
+      return;
+    }
+
+    /* FROM: kaynaklar virgülle ayrılmışsa her biri kendi satırında */
+    if (c.kw === 'FROM') {
+      var srcs = Parse.splitList(c.body);
+      if (srcs.length > 1) {
+        P.line(level, kw);
+        emitItems(P, srcs, level + 1, null);
+      } else {
+        emitExpr(P, c.body, level, kw + ' ', '');
+      }
+      return;
+    }
+
+    /* Genel yan tümce */
+    emitExpr(P, c.body, level, kw + (c.body.length ? ' ' : ''), '');
+  }
+
+  function emitJoin(P, j, level) {
+    var o = P.o;
+    var kw = kwOf(j, o);
+    var head = kw + spaceJoin(inline(j.source, o));
+
+    if (!j.on) {
+      emitExpr(P, j.source, level, kw + ' ', '');
+      return;
+    }
+
+    var full = head + ' ' + caseKw('ON', o) + ' ' + inline(j.on, o);
+    if (!o.onNewLine && !hasBreaker(j.source, o) && !hasBreaker(j.on, o) && P.fits(level, full)) {
+      P.line(level, full);
+      return;
+    }
+
+    emitExpr(P, j.source, level, kw + ' ', '');
+    emitCond(P, j.on, level + 1, caseKw('ON', o) + ' ', level + 1);
+  }
+
+  function emitClauses(P, clauses, level) {
+    for (var i = 0; i < clauses.length; i++) {
+      var c = clauses[i];
+      switch (c.type) {
+        case 'Clause': emitClause(P, c, level); break;
+        case 'Join': emitJoin(P, c, level); break;
+        case 'SetOp': P.line(level, kwOf(c, P.o)); break;
+        case 'Lead':
+        case 'Raw': emitExpr(P, c.body, level, '', ''); break;
+        default: break;
+      }
+    }
+  }
+
+  /* ============================================================
+     İfade / blok yazımı
+     ============================================================ */
+
+  function emitStmts(P, stmts, level, blankBetween) {
+    for (var i = 0; i < stmts.length; i++) {
+      if (i > 0 && blankBetween && P.o.blankBetween) P.blank();
+      emitStmt(P, stmts[i], level);
+    }
+  }
+
+  function emitStmt(P, s, level) {
+    if (!s) return;
+    var o = P.o;
+
+    if (s.lead && s.lead.length) {
+      for (var L = 0; L < s.lead.length; L++) P.line(level, s.lead[L].value);
+    }
+
+    switch (s.type) {
+      case 'Stmt':
+        emitClauses(P, s.body, level);
+        break;
+
+      case 'Cte': {
+        for (var i = 0; i < s.items.length; i++) {
+          var it = s.items[i];
+          var name = tokText(it.name, o) + (it.cols ? ' (' + inline(it.cols, o) + ')' : '');
+          var pre = i === 0 ? caseKw('WITH', o) + ' ' : '';
+          P.line(level, pre + name + ' ' + caseKw('AS', o) + ' (');
+          emitStmts(P, it.stmts, level + 1, false);
+          P.line(level, i === s.items.length - 1 ? ')' : '),');
+        }
+        if (s.main && s.main.length) emitClauses(P, s.main, level);
+        break;
+      }
+
+      case 'Block':
+        P.line(level, kwOf(s, o));
+        emitStmts(P, s.body, level + 1, true);
+        if (s.closed) P.line(level, kwOf(s, o, 'end'));
+        break;
+
+      case 'If': {
+        emitExpr(P, s.cond, level, kwOf(s, o) + ' ', '');
+        if (s.then) emitStmt(P, s.then, s.then.type === 'Block' ? level : level + 1);
+        if (s.els) {
+          if (s.els.type === 'If' && s.els.kw === 'ELSE IF') {
+            emitStmt(P, s.els, level);
+          } else {
+            P.line(level, caseKw('ELSE', o));
+            emitStmt(P, s.els, s.els.type === 'Block' ? level : level + 1);
+          }
+        }
+        break;
+      }
+
+      case 'Else':
+        P.line(level, caseKw('ELSE', o));
+        emitStmt(P, s.body, s.body && s.body.type === 'Block' ? level : level + 1);
+        break;
+
+      case 'Comments':
+        for (var c = 0; c < s.tokens.length; c++) P.line(level, s.tokens[c].value);
+        break;
+
+      default:
+        break;
+    }
+
+    /* Noktalı virgül her ifade türünde son satıra eklenir */
+    if (s.semi) P.appendToLast(';');
+  }
+
+  /* ============================================================
+     Giriş noktaları
+     ============================================================ */
+
+  function formatTree(tree, o) {
+    var P = new Out(o);
+    for (var b = 0; b < tree.body.length; b++) {
+      var batch = tree.body[b];
+      if (b > 0) {
+        P.blank();
+        P.line(0, caseKw('GO', o));
+        P.blank();
+      }
+      emitStmts(P, batch.body, 0, true);
+    }
+    /* baştaki/sondaki boşlukları temizle */
+    var lines = P.lines;
+    while (lines.length && lines[0] === '') lines.shift();
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines.join('\n');
+  }
+
+  function format(sql, options) {
+    var o = opts(options);
+    if (!sql || !sql.trim()) return '';
+    var tree = SQL.Parse.parse(sql);
+    return formatTree(tree, o);
+  }
+
+  /** Tek satıra indirir; yorumları atar (satır yorumu tek satırı bozar) */
+  function minify(sql, options) {
+    var o = opts(options);
+    if (!sql || !sql.trim()) return '';
+    var toks = Lex.tokenize(sql).tokens;
+    var J = new Joiner(o);
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (t.type === 'comment') continue;
+      if (t.type === 'word' && t.up === 'GO' && t.nl > 0) {
+        J.text(';', { type: 'punc', value: ';' });
+        continue;
+      }
+      J.tok(t, o);
+    }
+    return J.s.replace(/\s*;\s*$/, ';').trim();
+  }
+
+  /** Yorumları siler, biçimi korur */
+  function stripComments(sql) {
+    if (!sql) return '';
+    var toks = Lex.tokenize(sql).tokens;
+    var out = '', pos = 0;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (t.type !== 'comment') continue;
+      out += sql.slice(pos, t.start);
+      pos = t.end;
+      /* satır yorumu satırın tamamıysa satır sonunu da yut */
+      if (!t.block && t.own && sql[pos] === '\n') pos++;
+    }
+    out += sql.slice(pos);
+    return out.split('\n').map(function (l) { return l.replace(/[ \t]+$/, ''); })
+              .join('\n').replace(/\n{3,}/g, '\n\n');
+  }
+
+  /** Sadece boşlukları düzeltir; satır yapısını korur */
+  function normalize(sql, options) {
+    var o = opts(options);
+    if (!sql) return '';
+    var toks = Lex.tokenize(sql).tokens;
+    var lines = [], J = new Joiner(o), curLine = null;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (curLine === null) curLine = t.line;
+      if (t.line !== curLine) {
+        lines.push({ line: curLine, text: J.s });
+        J = new Joiner(o); curLine = t.line;
+      }
+      if (t.type === 'comment') J.text(t.value, { type: 'comment', value: t.value });
+      else J.tok(t, o);
+    }
+    if (J.s) lines.push({ line: curLine, text: J.s });
+
+    var src = sql.split('\n');
+    var out = [];
+    for (var k = 0; k < lines.length; k++) {
+      var orig = src[lines[k].line - 1] || '';
+      var lead = (orig.match(/^[ \t]*/) || [''])[0];
+      out.push(lead + lines[k].text);
+    }
+    return out.join('\n');
+  }
+
+  SQL.Print = {
+    format: format,
+    formatTree: formatTree,
+    minify: minify,
+    stripComments: stripComments,
+    normalize: normalize,
+    inline: inline,
+    DEFAULTS: DEFAULTS,
+    opts: opts
+  };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
+     KATMAN 4 — SQL.Analyze : ÖLÇÜM, ANA HAT, RİSK UYARILARI
+     Biçimlendirilmiş metnin ağacı üzerinde yürür; bu sayede
+     ürettiği satır numaraları föy panosundakiyle birebir eşleşir.
+     ============================================================ -->
+<script>
+(function (SQL) {
+  'use strict';
+
+  var Parse = SQL.Parse, Lex = SQL.Lex;
+
+  var CMP = new Set(['=', '<', '>', '<=', '>=', '<>', '!=', '!<', '!>']);
+  var CMP_KW = new Set(['LIKE', 'NOT LIKE', 'IN', 'NOT IN', 'BETWEEN', 'NOT BETWEEN']);
+  var CROSSY = new Set(['CROSS JOIN', 'CROSS APPLY', 'OUTER APPLY']);
+
+  function run(tree, text) {
+    var A = {
+      stats: { ifade: 0, tablo: 0, join: 0, derinlik: 0, satir: 0, karakter: 0, cte: 0 },
+      notes: [], outline: [], tables: []
+    };
+    var seenTable = new Set();
+    var maxDepth = 0;
+
+    A.stats.satir = text ? text.split('\n').length : 0;
+    A.stats.karakter = text ? text.length : 0;
+
+    /* Çözümleyici sorunları doğrudan uyarıya dönüşür */
+    (tree.issues || []).forEach(function (is) {
+      A.notes.push({ level: 'risk', line: is.line, text: is.text });
+    });
+
+    function note(level, line, text) {
+      A.notes.push({ level: level, line: line, text: text });
+    }
+
+    function addTable(name, line) {
+      if (!name) return;
+      var key = name.toLowerCase();
+      if (seenTable.has(key)) return;
+      seenTable.add(key);
+      A.tables.push({ ad: name, line: line });
+    }
+
+    function outline(label, line, depth, kind) {
+      A.outline.push({ label: label, line: line, depth: depth, kind: kind });
+    }
+
+    /* ---------- İfade adı çıkarımı (ana hat etiketi) ---------- */
+
+    function stmtLabel(clauses) {
+      var kind = null, target = null;
+      for (var i = 0; i < clauses.length; i++) {
+        var c = clauses[i];
+        if (c.type !== 'Clause') continue;
+        if (!kind) kind = c.kw;
+        if (!target && (c.kw === 'FROM' || c.kw === 'INSERT INTO' || c.kw === 'UPDATE' ||
+                        c.kw === 'DELETE FROM' || c.kw === 'MERGE INTO')) {
+          target = nameOf(c.body);
+        }
+      }
+      if (!kind) return null;
+      return kind + (target ? ' · ' + target : '');
+    }
+
+    /* Düğüm listesinin başındaki nitelikli adı okur: dbo.musteri, [a].[b] */
+    function nameOf(nodes) {
+      var parts = [], started = false;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        if (n.type === 'Comment') continue;
+        if (n.type !== 'Tok') break;
+        var t = n.t;
+        if (t.type === 'word' || t.type === 'ident' || t.type === 'var') {
+          if (started && parts[parts.length - 1] !== '.') break;
+          parts.push(t.value); started = true;
+          continue;
+        }
+        if (t.type === 'punc' && t.value === '.') { parts.push('.'); continue; }
+        break;
+      }
+      return parts.join('') || null;
+    }
+
+    /* ---------- İfade düğümlerinde gezinme ---------- */
+
+    function walkExpr(nodes, depth, ctx) {
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+
+        if (n.type === 'Paren') {
+          if (n.kind === 'sub') {
+            if (depth + 1 > maxDepth) maxDepth = depth + 1;
+            outline('alt sorgu', n.line, depth + 1, 'sub');
+            walkStmts(n.stmts, depth + 1);
+          } else {
+            walkExpr(n.body || [], depth, ctx);
+          }
+          continue;
+        }
+
+        if (n.type === 'Case') {
+          walkExpr(n.operand, depth, ctx);
+          for (var w = 0; w < n.whens.length; w++) {
+            walkExpr(n.whens[w].when, depth, ctx);
+            walkExpr(n.whens[w].then, depth, ctx);
+          }
+          if (n.els) walkExpr(n.els, depth, ctx);
+          continue;
+        }
+
+        /* NOT IN + alt sorgu → NULL tuzağı */
+        if (n.type === 'Kw' && n.kw === 'NOT IN') {
+          var nx = nextNode(nodes, i);
+          if (nx && nx.type === 'Paren' && nx.kind === 'sub') {
+            note('warn', n.line,
+              'NOT IN + alt sorgu: alt sorgu tek bir NULL döndürürse sonuç tamamen boşalır. ' +
+              'NOT EXISTS tercih edilebilir.');
+          }
+        }
+
+        /* LIKE ile baştan joker → index kullanılamaz */
+        if (n.type === 'Kw' && (n.kw === 'LIKE' || n.kw === 'NOT LIKE')) {
+          var s = nextNode(nodes, i);
+          if (s && s.type === 'Tok' && s.t.type === 'string' &&
+              /^[NnBb]?'%/.test(s.t.value)) {
+            note('warn', n.line,
+              "LIKE '%…' baştan joker: index taranamaz, tam tablo taraması olur.");
+          }
+        }
+
+        /* Tablo ipucu NOLOCK — anahtar kelime olduğu için Kw düğümü olarak gelir */
+        if ((n.type === 'Kw' && (n.kw === 'NOLOCK' || n.kw === 'READUNCOMMITTED')) ||
+            (n.type === 'Tok' && n.t.type === 'word' &&
+             (n.t.up === 'NOLOCK' || n.t.up === 'READUNCOMMITTED'))) {
+          note('info', n.line,
+            'NOLOCK: kesinleşmemiş (dirty) veri okunabilir, satırlar atlanabilir veya ' +
+            'iki kez gelebilir.');
+        }
+      }
+    }
+
+    function nextNode(nodes, i) {
+      for (var j = i + 1; j < nodes.length; j++) if (nodes[j].type !== 'Comment') return nodes[j];
+      return null;
+    }
+
+    /* WHERE/ON/HAVING içinde kolonu saran fonksiyon → sargability */
+    function checkSargable(nodes, line) {
+      var parts = Parse.splitCond(nodes);
+      parts.forEach(function (p) {
+        var cmpAt = -1;
+        for (var i = 0; i < p.nodes.length; i++) {
+          var n = p.nodes[i];
+          if (n.type === 'Tok' && n.t.type === 'op' && CMP.has(n.t.value)) { cmpAt = i; break; }
+          if (n.type === 'Kw' && CMP_KW.has(n.kw)) { cmpAt = i; break; }
+        }
+        if (cmpAt <= 0) return;
+        for (var k = 0; k < cmpAt; k++) {
+          var n2 = p.nodes[k];
+          if (n2.type === 'Tok' && n2.t.func && !isConstantCall(p.nodes, k)) {
+            note('warn', n2.t.line,
+              n2.t.value + '(…) karşılaştırmanın sol tarafında: kolon fonksiyonla sarıldığı ' +
+              'için index kullanılamaz. Koşulu kolonu yalın bırakacak şekilde yazın.');
+            return;
+          }
+        }
+      });
+    }
+
+    /* GETDATE() gibi argümansız çağrılar sabit sayılır, uyarı üretmez */
+    function isConstantCall(nodes, i) {
+      var p = nodes[i + 1];
+      return !!(p && p.type === 'Paren' && !(p.body || []).length);
+    }
+
+    /* ---------- Yan tümce düzeyi ---------- */
+
+    function walkClauses(clauses, depth) {
+      var hasWhere = false, kinds = {}, firstLine = null;
+
+      clauses.forEach(function (c) {
+        if (firstLine === null && c.line) firstLine = c.line;
+
+        if (c.type === 'Clause') {
+          kinds[c.kw] = true;
+          if (c.kw === 'WHERE') hasWhere = true;
+
+          if (c.kw === 'FROM' || c.kw === 'INSERT INTO' || c.kw === 'UPDATE' ||
+              c.kw === 'DELETE FROM' || c.kw === 'MERGE INTO' || c.kw === 'INTO') {
+            Parse.splitList(c.body).forEach(function (item) {
+              addTable(nameOf(item), c.line);
+            });
+          }
+
+          if (c.kw === 'SELECT') checkStar(c, depth);
+          if (Parse.COND_CLAUSE.has(c.kw)) checkSargable(c.body, c.line);
+
+          walkExpr(c.body, depth, c.kw);
+          return;
+        }
+
+        if (c.type === 'Join') {
+          A.stats.join++;
+          addTable(nameOf(c.source), c.line);
+          if (!c.on && !CROSSY.has(c.kw)) {
+            note('risk', c.line,
+              c.kw + ' koşulsuz: her satır her satırla eşleşir (kartezyen çarpım). ' +
+              'ON koşulu ekleyin ya da bilinçliyse CROSS JOIN yazın.');
+          }
+          if (c.on) checkSargable(c.on, c.line);
+          walkExpr(c.source, depth, 'FROM');
+          if (c.on) walkExpr(c.on, depth, 'ON');
+          return;
+        }
+
+        if (c.type === 'Lead' || c.type === 'Raw') walkExpr(c.body, depth, null);
+      });
+
+      /* WHERE'siz UPDATE / DELETE */
+      if (!kinds['MERGE'] && !kinds['MERGE INTO'] && !hasWhere) {
+        if (kinds['UPDATE']) {
+          note('risk', firstLine, 'WHERE olmadan UPDATE: tablodaki tüm satırlar güncellenir.');
+        }
+        if (kinds['DELETE'] || kinds['DELETE FROM']) {
+          note('risk', firstLine, 'WHERE olmadan DELETE: tablodaki tüm satırlar silinir.');
+        }
+      }
+    }
+
+    function checkStar(c, depth) {
+      Parse.splitList(c.body).forEach(function (item) {
+        var real = item.filter(function (n) { return n.type !== 'Comment'; });
+        if (!real.length) return;
+        var last = real[real.length - 1];
+        if (last.type === 'Tok' && last.t.type === 'op' && last.t.value === '*') {
+          var ok = real.every(function (n) {
+            return n.type === 'Tok' && (n.t.type === 'word' || n.t.type === 'ident' ||
+                   n.t.value === '.' || n.t.value === '*');
+          });
+          if (ok) {
+            note('warn', c.line,
+              'SELECT * : kolon eklenince sorgu sessizce değişir ve gereksiz veri taşınır. ' +
+              'Kolonları açıkça yazın.');
+          }
+        }
+      });
+    }
+
+    /* ---------- İfade / blok düzeyi ---------- */
+
+    function walkStmts(stmts, depth) {
+      stmts.forEach(function (s) { walkStmt(s, depth); });
+    }
+
+    function walkStmt(s, depth) {
+      if (!s) return;
+      switch (s.type) {
+        case 'Stmt': {
+          if (depth === 0) A.stats.ifade++;
+          var lbl = stmtLabel(s.body);
+          if (lbl) outline(lbl, s.line, depth, 'stmt');
+          walkClauses(s.body, depth);
+          break;
+        }
+        case 'Cte': {
+          if (depth === 0) A.stats.ifade++;
+          s.items.forEach(function (it) {
+            A.stats.cte++;
+            outline('CTE · ' + (it.name ? it.name.value : '?'), it.line, depth, 'cte');
+            walkStmts(it.stmts, depth + 1);
+          });
+          if (s.main && s.main.length) {
+            var l2 = stmtLabel(s.main);
+            if (l2) outline(l2, s.line, depth, 'stmt');
+            walkClauses(s.main, depth);
+          }
+          break;
+        }
+        case 'Block':
+          outline(s.kw, s.line, depth, 'block');
+          walkStmts(s.body, depth + 1);
+          break;
+        case 'If':
+          outline(s.kw, s.line, depth, 'block');
+          walkExpr(s.cond, depth, 'IF');
+          walkStmt(s.then, depth + 1);
+          walkStmt(s.els, depth + 1);
+          break;
+        case 'Else':
+          walkStmt(s.body, depth + 1);
+          break;
+        default:
+          break;
+      }
+    }
+
+    (tree.body || []).forEach(function (batch) { walkStmts(batch.body, 0); });
+
+    A.stats.tablo = A.tables.length;
+    A.stats.derinlik = maxDepth;
+
+    /* Uyarıları önce ciddiyete, sonra satıra göre sırala */
+    var rank = { risk: 0, warn: 1, info: 2 };
+    A.notes.sort(function (a, b) {
+      return (rank[a.level] - rank[b.level]) || ((a.line || 0) - (b.line || 0));
+    });
+
+    /* Aynı satırda aynı metni tekrarlama */
+    var seenNote = new Set();
+    A.notes = A.notes.filter(function (n) {
+      var k = n.level + '|' + n.line + '|' + n.text;
+      if (seenNote.has(k)) return false;
+      seenNote.add(k); return true;
+    });
+
+    return A;
+  }
+
+  /** Metni çözümleyip analiz eder */
+  function analyze(text) {
+    if (!text || !text.trim()) {
+      return { stats: { ifade: 0, tablo: 0, join: 0, derinlik: 0, satir: 0, karakter: 0, cte: 0 },
+               notes: [], outline: [], tables: [] };
+    }
+    return run(SQL.Parse.parse(text), text);
+  }
+
+  SQL.Analyze = { analyze: analyze, run: run };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
+     SQL.Paint — söz dizimi renklendirme
+     Tokenizer'ın kendisini kullanır; ayrı bir kural seti yok.
+     ============================================================ -->
+<script>
+(function (SQL) {
+  'use strict';
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  var CLS = {
+    comment: 'c', string: 's', number: 'n', ident: 'i', var: 'v'
+  };
+
+  /**
+   * Metni renklendirilmiş HTML'e çevirir.
+   * @param {string} text
+   * @param {{from:number,to:number,active:boolean}[]} [marks] vurgulanacak aralıklar
+   */
+  function paint(text, marks) {
+    if (!text) return '';
+    var toks = SQL.Lex.tokenize(text).tokens;
+    var out = [], pos = 0;
+
+    function raw(s) { return esc(s); }
+
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i];
+      if (t.start > pos) out.push(raw(text.slice(pos, t.start)));
+      var cls = CLS[t.type] || null;
+      if (t.type === 'word') {
+        if (t.func) cls = 'f';
+        else if (SQL.Lex.KEYWORDS.has(t.up)) cls = 'k';
+      }
+      var body = esc(t.value);
+      out.push(cls ? '<span class="' + cls + '">' + body + '</span>' : body);
+      pos = t.end;
+    }
+    if (pos < text.length) out.push(raw(text.slice(pos)));
+
+    var html = out.join('');
+    if (marks && marks.length) html = applyMarks(text, marks);
+    return html;
+  }
+
+  /**
+   * Arama vurguları renklendirmenin üstüne biner; çakışmayı önlemek için
+   * vurgu varken metin düz kaçırılır ve yalnızca eşleşmeler işaretlenir.
+   */
+  function applyMarks(text, marks) {
+    var out = [], pos = 0;
+    marks.slice().sort(function (a, b) { return a.from - b.from; }).forEach(function (m) {
+      if (m.from < pos) return;
+      out.push(esc(text.slice(pos, m.from)));
+      out.push('<mark class="hit' + (m.active ? ' on' : '') + '">' +
+               esc(text.slice(m.from, m.to)) + '</mark>');
+      pos = m.to;
+    });
+    out.push(esc(text.slice(pos)));
+    return out.join('');
+  }
+
+  SQL.Paint = { paint: paint, esc: esc };
+})(window.SQL);
+</script>
+
+<!-- ============================================================
+     App.Store — kalıcı depolama
+     IndexedDB birincil (FileSystemHandle yalnızca burada saklanabilir),
+     localStorage yedek. file:// açılışında IndexedDB kapalı olabilir;
+     her çağrı sessizce yedeğe düşer.
+     ============================================================ -->
+<script>
+window.App = window.App || {};
+(function (App) {
+  'use strict';
+
+  var DB = 'sql-foy', STORE = 'kv', LS = 'sqlfoy:';
+  var dbp = null, useIdb = true;
+
+  function open() {
+    if (dbp) return dbp;
+    dbp = new Promise(function (resolve) {
+      var req;
+      try { req = indexedDB.open(DB, 1); }
+      catch (e) { useIdb = false; return resolve(null); }
+      req.onupgradeneeded = function () {
+        var d = req.result;
+        if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { useIdb = false; resolve(null); };
+      req.onblocked = function () { useIdb = false; resolve(null); };
+      setTimeout(function () { if (!req.readyState || req.readyState !== 'done') resolve(null); }, 2500);
+    });
+    return dbp;
+  }
+
+  function lsGet(key) {
+    try {
+      var raw = localStorage.getItem(LS + key);
+      return raw === null ? undefined : JSON.parse(raw);
+    } catch (e) { return undefined; }
+  }
+  function lsSet(key, val) {
+    try { localStorage.setItem(LS + key, JSON.stringify(val)); return true; }
+    catch (e) { return false; }
+  }
+  function lsDel(key) { try { localStorage.removeItem(LS + key); } catch (e) {} }
+
+  function get(key) {
+    return open().then(function (d) {
+      if (!d) return lsGet(key);
+      return new Promise(function (resolve) {
+        try {
+          var r = d.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+          r.onsuccess = function () {
+            resolve(r.result === undefined ? lsGet(key) : r.result);
+          };
+          r.onerror = function () { resolve(lsGet(key)); };
+        } catch (e) { resolve(lsGet(key)); }
+      });
+    });
+  }
+
+  function set(key, val) {
+    return open().then(function (d) {
+      if (!d) return lsSet(key, val);
+      return new Promise(function (resolve) {
+        try {
+          var r = d.transaction(STORE, 'readwrite').objectStore(STORE).put(val, key);
+          r.onsuccess = function () { resolve(true); };
+          r.onerror = function () { resolve(lsSet(key, val)); };
+        } catch (e) {
+          /* Handle gibi klonlanamayan değerler localStorage'a yazılamaz */
+          resolve(lsSet(key, val));
+        }
+      });
+    });
+  }
+
+  function del(key) {
+    lsDel(key);
+    return open().then(function (d) {
+      if (!d) return true;
+      return new Promise(function (resolve) {
+        try {
+          var r = d.transaction(STORE, 'readwrite').objectStore(STORE).delete(key);
+          r.onsuccess = r.onerror = function () { resolve(true); };
+        } catch (e) { resolve(true); }
+      });
+    });
+  }
+
+  App.Store = {
+    get: get, set: set, del: del,
+    /* Klasöre yazma yalnızca güvenli bağlamda (https / localhost) çalışır */
+    hasFS: !!(window.showDirectoryPicker && window.isSecureContext)
+  };
+})(window.App);
+</script>
+
+<!-- ============================================================
+     App.Shell — editör kabuğu
+     Sekmeler, canlı önizleme, renklendirme, cetveller, analiz
+     paneli, bul & değiştir, komut paleti, kısayollar, tema.
+     ============================================================ -->
+<script>
+(function (App, SQL) {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var $$ = function (sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  };
+
+  var input = $('input'), output = $('output');
+  var inGutter = $('inGutter'), outGutter = $('outGutter');
+  var inCode = $('inCode'), outCode = $('outCode');
+
+  var ORNEK = [
+    "-- Aylık müşteri cirosu ve segment dağılımı",
+    "with aylik as (select musteri_id, datefromparts(year(tarih),month(tarih),1) as ay,",
+    "sum(tutar) as tutar from dbo.siparis with (nolock) where tarih >= '2024-01-01'",
+    "and iptal = 0 group by musteri_id, datefromparts(year(tarih),month(tarih),1))",
+    "select m.[ad soyad] as musteri, a.ay, a.tutar,",
+    "case when a.tutar > 10000 then N'altın' when a.tutar > 5000 then N'gümüş'",
+    "else N'standart' end as segment,",
+    "(select count(*) from dbo.iade i where i.musteri_id = m.id) as iade_sayisi",
+    "from aylik a inner join dbo.musteri m on m.id = a.musteri_id and m.aktif = 1",
+    "left join dbo.adres ad on ad.musteri_id = m.id and ad.tip = 'fatura'",
+    "where m.ulke in ('TR','DE','NL') and exists (select 1 from dbo.abonelik ab",
+    "where ab.musteri_id = m.id) order by a.ay desc, a.tutar desc;"
+  ].join('\n');
+
+  /* ============================================================
+     Durum
+     ============================================================ */
+
+  var S = {
+    tabs: [], aktif: null, sonCikti: '', sonAnaliz: null,
+    kip: 'format', yuklendi: false
+  };
+  var seq = 1;
+  function uid() { return 'q' + (Date.now().toString(36)) + (seq++).toString(36); }
+
+  /* ============================================================
+     Bildirim
+     ============================================================ */
+
+  var flashTimer = null;
+  function flash(text, kalici) {
+    $('stMsg').textContent = text || '';
+    clearTimeout(flashTimer);
+    if (text && !kalici) flashTimer = setTimeout(function () { $('stMsg').textContent = ''; }, 4200);
+  }
+
+  /* ============================================================
+     Tema
+     ============================================================ */
+
+  function setTheme(t) {
+    document.body.setAttribute('data-theme', t);
+    var ic = $('themeIcon');
+    ic.innerHTML = t === 'dark'
+      ? '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>'
+      : '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2' +
+        'M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>';
+    App.Store.set('tema', t);
+  }
+
+  /* ============================================================
+     Seçenekler
+     ============================================================ */
+
+  function radio(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? el.value : null;
+  }
+  function setRadio(name, val) {
+    var el = document.querySelector('input[name="' + name + '"][value="' + val + '"]');
+    if (el) el.checked = true;
+  }
+
+  function opts() {
+    var ind = radio('indent'), cols = radio('cols');
+    return {
+      keywordCase: radio('kwCase'),
+      identifierCase: radio('idCase'),
+      indentUnit: ind === 'tab' ? '\t' : new Array(parseInt(ind, 10) + 1).join(' '),
+      commaPosition: radio('comma'),
+      columnsPerLine: cols === 'fit' ? 'fit' : parseInt(cols, 10),
+      maxWidth: parseInt(radio('width'), 10) || 0,
+      alignAs: $('optAlignAs').checked,
+      breakAndOr: $('optBreakAndOr').checked,
+      onNewLine: $('optOnNewLine').checked,
+      expandCase: $('optExpandCase').checked,
+      expandIn: $('optExpandIn').checked,
+      blankBetween: $('optBlankBetween').checked,
+      parenSpacing: $('optParenSpacing').checked
+    };
+  }
+
+  function saveOpts() {
+    if (!S.yuklendi) return;
+    App.Store.set('ayarlar', {
+      kwCase: radio('kwCase'), idCase: radio('idCase'), indent: radio('indent'),
+      comma: radio('comma'), width: radio('width'), cols: radio('cols'),
+      alignAs: $('optAlignAs').checked, breakAndOr: $('optBreakAndOr').checked,
+      onNewLine: $('optOnNewLine').checked, expandCase: $('optExpandCase').checked,
+      expandIn: $('optExpandIn').checked, blankBetween: $('optBlankBetween').checked,
+      parenSpacing: $('optParenSpacing').checked,
+      live: $('optLive').checked, side: $('optSide').checked
+    });
+  }
+
+  function loadOpts(a) {
+    if (!a) return;
+    ['kwCase', 'idCase', 'indent', 'comma', 'width', 'cols'].forEach(function (k) {
+      if (a[k] != null) setRadio(k, a[k]);
+    });
+    [['alignAs', 'optAlignAs'], ['breakAndOr', 'optBreakAndOr'], ['onNewLine', 'optOnNewLine'],
+     ['expandCase', 'optExpandCase'], ['expandIn', 'optExpandIn'],
+     ['blankBetween', 'optBlankBetween'], ['parenSpacing', 'optParenSpacing'],
+     ['live', 'optLive'], ['side', 'optSide']].forEach(function (pair) {
+      if (typeof a[pair[0]] === 'boolean') $(pair[1]).checked = a[pair[0]];
+    });
+  }
+
+  /* ============================================================
+     Sekmeler
+     ============================================================ */
+
+  function aktifSekme() {
+    return S.tabs.filter(function (t) { return t.id === S.aktif; })[0] || null;
+  }
+
+  function yeniSekme(ad, sql, odakla) {
+    var t = { id: uid(), ad: ad || 'Sorgu ' + (S.tabs.length + 1), sql: sql || '', kayit: null };
+    S.tabs.push(t);
+    S.aktif = t.id;
+    renderTabs();
+    input.value = t.sql;
+    if (odakla !== false) input.focus();
+    calistir(true);
+    kaydetTaslak();
+    return t;
+  }
+
+  function sekmeyeGec(id) {
+    var cur = aktifSekme();
+    if (cur) cur.sql = input.value;
+    S.aktif = id;
+    var t = aktifSekme();
+    input.value = t ? t.sql : '';
+    renderTabs();
+    calistir(true);
+    input.focus();
+  }
+
+  function sekmeKapat(id) {
+    var i = -1;
+    S.tabs.forEach(function (t, k) { if (t.id === id) i = k; });
+    if (i < 0) return;
+    S.tabs.splice(i, 1);
+    if (!S.tabs.length) { yeniSekme('Sorgu 1', '', false); return; }
+    if (S.aktif === id) S.aktif = S.tabs[Math.min(i, S.tabs.length - 1)].id;
+    var t = aktifSekme();
+    input.value = t ? t.sql : '';
+    renderTabs();
+    calistir(true);
+    kaydetTaslak();
+  }
+
+  function renderTabs() {
+    var box = $('tabs');
+    box.innerHTML = '';
+    S.tabs.forEach(function (t, i) {
+      var el = document.createElement('div');
+      el.className = 'tab' + (t.kayit ? '' : (t.sql ? ' dirty' : ''));
+      el.setAttribute('role', 'tab');
+      el.setAttribute('aria-selected', t.id === S.aktif ? 'true' : 'false');
+      el.title = t.ad + (t.kayit ? ' · kütüphanede' : '');
+      el.innerHTML = '<span class="dot"></span><span class="nm"></span>' +
+                     '<button class="x" aria-label="Sekmeyi kapat">&times;</button>';
+      el.querySelector('.nm').textContent = t.ad;
+      el.addEventListener('click', function (e) {
+        if (e.target.classList.contains('x')) { sekmeKapat(t.id); return; }
+        sekmeyeGec(t.id);
+      });
+      box.appendChild(el);
+    });
+  }
+
+  function sekmeAdlandir(ad) {
+    var t = aktifSekme();
+    if (!t) return;
+    t.ad = ad;
+    renderTabs();
+    kaydetTaslak();
+  }
+
+  /* ============================================================
+     Cetvel + çıktı çizimi
+     ============================================================ */
+
+  function gutterHtml(n, aktifSatir) {
+    var parts = [];
+    for (var i = 1; i <= Math.max(1, n); i++) {
+      parts.push(i === aktifSatir ? '<span class="cur">' + i + '</span>' : String(i));
+    }
+    return parts.join('\n');
+  }
+
+  function inputSatiri() {
+    var pos = input.selectionStart || 0;
+    return input.value.slice(0, pos).split('\n').length;
+  }
+
+  function renderInGutter() {
+    var n = input.value ? input.value.split('\n').length : 1;
+    inGutter.innerHTML = gutterHtml(n, inputSatiri());
+    inGutter.scrollTop = input.scrollTop;
+    $('inCount').textContent = (input.value ? n : 0) + ' satır';
+  }
+
+  function renderOut(text, ms) {
+    S.sonCikti = text;
+    output.innerHTML = SQL.Paint.paint(text);
+    var n = text ? text.split('\n').length : 1;
+    outGutter.innerHTML = gutterHtml(n, 0);
+    $('outCount').textContent = (text ? n : 0) + ' satır';
+    $('stStats').textContent = text
+      ? n + ' satır · ' + text.length + ' karakter' + (ms != null ? ' · ' + ms + ' ms' : '')
+      : 'Hazır';
+  }
+
+  /* ============================================================
+     Analiz paneli
+     ============================================================ */
+
+  var ETIKET = {
+    ifade: 'İfade', tablo: 'Tablo', join: 'JOIN', cte: 'CTE',
+    derinlik: 'Alt sorgu derinliği', satir: 'Satır', karakter: 'Karakter'
+  };
+
+  function renderAnaliz(a, ms) {
+    S.sonAnaliz = a;
+    if (!$('optSide').checked) return;
+
+    $('anTime').textContent = ms != null ? ms + ' ms' : '';
+
+    var dl = $('anStats');
+    dl.innerHTML = '';
+    Object.keys(ETIKET).forEach(function (k) {
+      var dt = document.createElement('dt'); dt.textContent = ETIKET[k];
+      var dd = document.createElement('dd'); dd.textContent = a.stats[k];
+      dl.appendChild(dt); dl.appendChild(dd);
+    });
+
+    var ul = $('anNotes');
+    ul.innerHTML = '';
+    if (!a.notes.length) {
+      var li0 = document.createElement('li');
+      li0.className = 'empty';
+      li0.textContent = 'Dikkat çeken bir şey yok.';
+      ul.appendChild(li0);
+    }
+    a.notes.forEach(function (n) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.className = 'note ' + n.level;
+      b.innerHTML = '<span class="ln"></span><span class="tx"></span>';
+      b.querySelector('.ln').textContent = n.line ? 'S' + n.line : '·';
+      b.querySelector('.tx').textContent = n.text;
+      b.addEventListener('click', function () { gotoLine(n.line); });
+      li.appendChild(b);
+      ul.appendChild(li);
+    });
+
+    var ol = $('anOutline');
+    ol.innerHTML = '';
+    if (!a.outline.length) {
+      var li1 = document.createElement('li');
+      li1.className = 'empty'; li1.textContent = '—';
+      ol.appendChild(li1);
+    }
+    a.outline.forEach(function (o) {
+      var li = document.createElement('li');
+      var b = document.createElement('button');
+      b.style.paddingLeft = (6 + o.depth * 12) + 'px';
+      b.textContent = (o.kind === 'cte' ? '◇ ' : o.kind === 'sub' ? '↳ ' : '▸ ') + o.label;
+      b.title = o.label + ' · satır ' + o.line;
+      b.addEventListener('click', function () { gotoLine(o.line); });
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+
+    var tb = $('anTables');
+    tb.innerHTML = '';
+    if (!a.tables.length) {
+      var em = document.createElement('span');
+      em.className = 'empty'; em.textContent = '—';
+      tb.appendChild(em);
+    }
+    a.tables.forEach(function (t) {
+      var sp = document.createElement('span');
+      sp.className = 'chip'; sp.textContent = t.ad;
+      tb.appendChild(sp);
+    });
+  }
+
+  /** Föy panosunda ilgili satıra kaydırır ve cetvelde işaretler */
+  function gotoLine(n) {
+    if (!n) return;
+    var lh = parseFloat(getComputedStyle(output).lineHeight) || 20;
+    var pad = parseFloat(getComputedStyle(output).paddingTop) || 12;
+    outCode.scrollTop = Math.max(0, (n - 1) * lh + pad - outCode.clientHeight / 2);
+    var total = S.sonCikti ? S.sonCikti.split('\n').length : 1;
+    outGutter.innerHTML = gutterHtml(total, n);
+  }
+
+  /* ============================================================
+     Çalıştırma
+     ============================================================ */
+
+  function calistir(sessiz) {
+    var src = input.value;
+    var t = aktifSekme();
+    if (t) t.sql = src;
+    renderInGutter();
+
+    if (!src.trim()) {
+      renderOut('', null);
+      renderAnaliz(SQL.Analyze.analyze(''), null);
+      if (!sessiz) flash('');
+      return;
+    }
+
+    var t0 = performance.now();
+    var res;
+    try {
+      if (S.kip === 'minify') res = SQL.Print.minify(src, opts());
+      else if (S.kip === 'strip') res = SQL.Print.stripComments(src);
+      else res = SQL.Print.format(src, opts());
+    } catch (err) {
+      renderOut(src, null);
+      flash('Bu sorgu biçimlendirilemedi: ' + err.message, true);
+      return;
+    }
+    var ms = Math.round(performance.now() - t0);
+    renderOut(res, ms);
+
+    try {
+      var a0 = performance.now();
+      renderAnaliz(SQL.Analyze.analyze(res), Math.round(performance.now() - a0));
+    } catch (err2) { /* analiz biçimlendirmeyi engellemez */ }
+
+    if (!sessiz) flash('');
+  }
+
+  var runTimer = null;
+  function zamanla() {
+    renderInGutter();
+    kaydetTaslakGecikmeli();
+    if (!$('optLive').checked) return;
+    clearTimeout(runTimer);
+    runTimer = setTimeout(function () { calistir(true); }, 260);
+  }
+
+  /* ============================================================
+     Taslak kaydı
+     ============================================================ */
+
+  var saveTimer = null;
+  function kaydetTaslakGecikmeli() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(kaydetTaslak, 600);
+  }
+  function kaydetTaslak() {
+    if (!S.yuklendi) return;
+    var cur = aktifSekme();
+    if (cur) cur.sql = input.value;
+    App.Store.set('sekmeler', {
+      aktif: S.aktif,
+      tabs: S.tabs.map(function (t) {
+        return { id: t.id, ad: t.ad, sql: t.sql, kayit: t.kayit };
+      })
+    });
+  }
+
+  /* ============================================================
+     Bul & değiştir
+     ============================================================ */
+
+  var F = { hits: [], idx: -1 };
+
+  function findRegex() {
+    var q = $('findQ').value;
+    if (!q) return null;
+    var flags = 'g' + ($('findCase').checked ? '' : 'i');
+    try {
+      return $('findRe').checked ? new RegExp(q, flags)
+                                 : new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags);
+    } catch (e) { return null; }
+  }
+
+  function findScan(keepIdx) {
+    var re = findRegex();
+    F.hits = [];
+    if (re) {
+      var text = input.value, m, guard = 0;
+      while ((m = re.exec(text)) && ++guard < 20000) {
+        F.hits.push({ from: m.index, to: m.index + m[0].length });
+        if (m[0].length === 0) re.lastIndex++;
+      }
+    }
+    if (!keepIdx) F.idx = F.hits.length ? 0 : -1;
+    if (F.idx >= F.hits.length) F.idx = F.hits.length ? 0 : -1;
+    $('findRes').textContent = (F.hits.length ? (F.idx + 1) : 0) + ' / ' + F.hits.length;
+  }
+
+  function findGo(delta) {
+    if (!F.hits.length) return;
+    F.idx = (F.idx + delta + F.hits.length) % F.hits.length;
+    var h = F.hits[F.idx];
+    input.focus();
+    input.setSelectionRange(h.from, h.to);
+    var line = input.value.slice(0, h.from).split('\n').length;
+    var lh = parseFloat(getComputedStyle(input).lineHeight) || 20;
+    input.scrollTop = Math.max(0, (line - 1) * lh - input.clientHeight / 2);
+    renderInGutter();
+    $('findRes').textContent = (F.idx + 1) + ' / ' + F.hits.length;
+  }
+
+  function findReplace(hepsi) {
+    var re = findRegex();
+    if (!re) return;
+    var rep = $('findR').value;
+    if (hepsi) {
+      var yeni = input.value.replace(re, $('findRe').checked ? rep : function () { return rep; });
+      input.select();
+      if (!document.execCommand('insertText', false, yeni)) input.value = yeni;
+      flash(F.hits.length + ' değişiklik yapıldı.');
+      findScan();
+      zamanla();
+      return;
+    }
+    if (F.idx < 0 || !F.hits.length) { findGo(1); return; }
+    var h = F.hits[F.idx];
+    input.focus();
+    input.setSelectionRange(h.from, h.to);
+    if (!document.execCommand('insertText', false, rep)) {
+      input.value = input.value.slice(0, h.from) + rep + input.value.slice(h.to);
+    }
+    findScan(true);
+    zamanla();
+  }
+
+  function findAc() {
+    $('findbar').hidden = false;
+    var sel = input.value.slice(input.selectionStart, input.selectionEnd);
+    if (sel && sel.length < 120 && sel.indexOf('\n') < 0) $('findQ').value = sel;
+    $('findQ').focus(); $('findQ').select();
+    findScan();
+  }
+  function findKapat() {
+    $('findbar').hidden = true;
+    F.hits = []; F.idx = -1;
+    input.focus();
+  }
+
+  /* ============================================================
+     Çekmeceler ve kipler
+     ============================================================ */
+
+  var acikKatman = null;
+
+  function katmanAc(id) {
+    katmanKapat();
+    acikKatman = id;
+    $(id).hidden = false;
+    if (id === 'drawerLib' || id === 'drawerTools') $('scrim').hidden = false;
+    var ilk = $(id).querySelector('input,button,select,textarea');
+    if (ilk) ilk.focus();
+    document.dispatchEvent(new CustomEvent('katman:ac', { detail: id }));
+  }
+
+  function katmanKapat() {
+    ['drawerLib', 'drawerTools', 'palette', 'helpModal'].forEach(function (id) {
+      $(id).hidden = true;
+    });
+    $('scrim').hidden = true;
+    acikKatman = null;
+  }
+
+  /* ============================================================
+     Komut paleti
+     ============================================================ */
+
+  var KOMUTLAR = [];
+  var palSec = 0, palListe = [];
+
+  function komutlariKur() {
+    KOMUTLAR = [
+      { ad: 'Biçimlendir', kat: 'Biçim', tus: 'Ctrl+↵', fn: function () { S.kip = 'format'; calistir(); } },
+      { ad: 'Tek satıra indir', kat: 'Biçim', tus: 'Ctrl+Shift+M', fn: function () { S.kip = 'minify'; calistir(); } },
+      { ad: 'Yorumları sil', kat: 'Biçim', fn: function () { S.kip = 'strip'; calistir(); } },
+      { ad: 'Çıktıyı kopyala', kat: 'Dosya', tus: 'Ctrl+Shift+C', fn: kopyala },
+      { ad: 'Çıktıyı .sql olarak indir', kat: 'Dosya', fn: indir },
+      { ad: 'Dosya aç', kat: 'Dosya', fn: function () { $('filePick').click(); } },
+      { ad: 'Çıktıyı girdiye taşı', kat: 'Dosya', fn: cikisiGirdiyeAl },
+      { ad: 'Örnek sorgu yükle', kat: 'Dosya', fn: function () { input.value = ORNEK; calistir(); } },
+      { ad: 'Girdiyi temizle', kat: 'Dosya', fn: temizle },
+      { ad: 'Kütüphaneyi aç', kat: 'Panel', fn: function () { katmanAc('drawerLib'); } },
+      { ad: 'Araçları aç', kat: 'Panel', fn: function () { katmanAc('drawerTools'); } },
+      { ad: 'Bul & değiştir', kat: 'Panel', tus: 'Ctrl+F', fn: findAc },
+      { ad: 'Analiz panelini aç/kapat', kat: 'Panel', tus: 'Ctrl+B', fn: function () {
+          $('optSide').checked = !$('optSide').checked; yanPanel(); } },
+      { ad: 'Ayar çubuğunu aç/kapat', kat: 'Panel', fn: ayarCubugu },
+      { ad: 'Kısayollar', kat: 'Panel', tus: 'Ctrl+/', fn: function () { katmanAc('helpModal'); } },
+      { ad: 'Yeni sekme', kat: 'Sekme', tus: 'Ctrl+T', fn: function () { yeniSekme(); } },
+      { ad: 'Sekmeyi kapat', kat: 'Sekme', tus: 'Ctrl+W', fn: function () { sekmeKapat(S.aktif); } },
+      { ad: 'Sekmeyi yeniden adlandır', kat: 'Sekme', fn: function () {
+          var t = aktifSekme(); if (!t) return;
+          var ad = prompt('Sekme adı', t.ad);
+          if (ad) sekmeAdlandir(ad.trim());
+        } },
+      { ad: 'Temayı değiştir', kat: 'Görünüm', fn: temaDegistir },
+      { ad: 'Yazı tipini büyüt', kat: 'Görünüm', fn: function () { fontBoyu(1); } },
+      { ad: 'Yazı tipini küçült', kat: 'Görünüm', fn: function () { fontBoyu(-1); } }
+    ];
+
+    /* Seçenek ön ayarları */
+    [['Anahtar kelimeler BÜYÜK', 'kwCase', 'upper'],
+     ['Anahtar kelimeler küçük', 'kwCase', 'lower'],
+     ['Girinti 2 boşluk', 'indent', '2'],
+     ['Girinti 4 boşluk', 'indent', '4'],
+     ['Girinti tab', 'indent', 'tab'],
+     ['Virgül satır sonunda', 'comma', 'trailing'],
+     ['Virgül satır başında', 'comma', 'leading'],
+     ['Satır genişliği sınırsız', 'width', '0'],
+     ['Satır genişliği 100', 'width', '100']
+    ].forEach(function (x) {
+      KOMUTLAR.push({ ad: x[0], kat: 'Ayar', fn: function () {
+        setRadio(x[1], x[2]); saveOpts(); calistir();
+      } });
+    });
+  }
+
+  function palRender() {
+    var q = $('palQ').value.toLowerCase().trim();
+    palListe = KOMUTLAR.filter(function (k) {
+      if (!q) return true;
+      return (k.ad + ' ' + k.kat).toLowerCase().indexOf(q) >= 0;
+    });
+    if (palSec >= palListe.length) palSec = 0;
+    var ul = $('palList');
+    ul.innerHTML = '';
+    palListe.forEach(function (k, i) {
+      var li = document.createElement('li');
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', i === palSec ? 'true' : 'false');
+      li.innerHTML = '<span class="nm"></span>' +
+        (k.tus ? '<kbd>' + k.tus + '</kbd>' : '') +
+        '<span class="cat"></span>';
+      li.querySelector('.nm').textContent = k.ad;
+      li.querySelector('.cat').textContent = k.kat;
+      li.addEventListener('mouseenter', function () { palSec = i; palMark(); });
+      li.addEventListener('click', function () { palCalistir(i); });
+      ul.appendChild(li);
+    });
+  }
+
+  function palMark() {
+    $$('#palList li').forEach(function (li, i) {
+      li.setAttribute('aria-selected', i === palSec ? 'true' : 'false');
+    });
+    var el = $$('#palList li')[palSec];
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function palCalistir(i) {
+    var k = palListe[i];
+    katmanKapat();
+    if (k) setTimeout(k.fn, 0);
+  }
+
+  function palAc() {
+    katmanAc('palette');
+    $('palQ').value = ''; palSec = 0;
+    palRender();
+    $('palQ').focus();
+  }
+
+  /* ============================================================
+     Eylemler
+     ============================================================ */
+
+  function kopyala() {
+    var text = S.sonCikti || input.value;
+    if (!text) { flash('Kopyalanacak bir şey yok.'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flash('Föy panoya kopyalandı.'); },
+        function () { kopyalaYedek(text); });
+    } else kopyalaYedek(text);
+  }
+
+  function kopyalaYedek(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); flash('Föy panoya kopyalandı.'); }
+    catch (e) { flash('Kopyalanamadı — metni elle seçin.'); }
+    document.body.removeChild(ta);
+  }
+
+  function indir() {
+    var text = S.sonCikti || input.value;
+    if (!text) { flash('İndirilecek bir şey yok.'); return; }
+    var t = aktifSekme();
+    var ad = ((t && t.ad) || 'sorgu').replace(/[^\wçğıöşüÇĞİÖŞÜ .-]+/g, '_') + '.sql';
+    var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = ad;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    flash(ad + ' indirildi.');
+  }
+
+  function cikisiGirdiyeAl() {
+    if (!S.sonCikti) return;
+    input.value = S.sonCikti;
+    calistir();
+    flash('Föy girdiye taşındı.');
+  }
+
+  function temizle() {
+    input.value = '';
+    calistir();
+    input.focus();
+  }
+
+  function dosyaOku(file) {
+    if (!file) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      var t = aktifSekme();
+      if (t && !t.sql.trim()) sekmeAdlandir(file.name.replace(/\.[^.]+$/, ''));
+      else yeniSekme(file.name.replace(/\.[^.]+$/, ''), '', false);
+      input.value = String(fr.result);
+      calistir();
+      flash(file.name + ' açıldı.');
+    };
+    fr.onerror = function () { flash('Dosya okunamadı.'); };
+    fr.readAsText(file, 'utf-8');
+  }
+
+  function temaDegistir() {
+    setTheme(document.body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  }
+
+  function fontBoyu(d) {
+    var cur = parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue('--fs-code')) || 13;
+    var yeni = Math.min(20, Math.max(10, cur + d));
+    document.documentElement.style.setProperty('--fs-code', yeni + 'px');
+    App.Store.set('fontBoyu', yeni);
+    renderInGutter();
+  }
+
+  function yanPanel() {
+    $('side').hidden = !$('optSide').checked;
+    saveOpts();
+    if ($('optSide').checked && S.sonCikti) {
+      renderAnaliz(SQL.Analyze.analyze(S.sonCikti), null);
+    }
+  }
+
+  function ayarCubugu() {
+    $('controls').classList.toggle('collapsed');
+    App.Store.set('ayarGizli', $('controls').classList.contains('collapsed'));
+  }
+
+  /* ============================================================
+     Olaylar
+     ============================================================ */
+
+  input.addEventListener('input', zamanla);
+  input.addEventListener('scroll', function () { inGutter.scrollTop = input.scrollTop; });
+  input.addEventListener('click', renderInGutter);
+  input.addEventListener('keyup', function (e) {
+    if (e.key.indexOf('Arrow') === 0 || e.key === 'Home' || e.key === 'End') renderInGutter();
+  });
+
+  /* Tab tuşu girinti ekler, odağı kaçırmaz */
+  input.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    var o = opts();
+    document.execCommand('insertText', false, o.indentUnit);
+  });
+
+  $$('.controls input').forEach(function (el) {
+    el.addEventListener('change', function () { saveOpts(); calistir(); });
+  });
+  $('optLive').addEventListener('change', function () {
+    saveOpts();
+    if ($('optLive').checked) calistir();
+  });
+  $('optSide').addEventListener('change', yanPanel);
+
+  $('btnFormat').addEventListener('click', function () { S.kip = 'format'; calistir(); });
+  $('btnMinify').addEventListener('click', function () { S.kip = 'minify'; calistir(); });
+  $('btnStrip').addEventListener('click', function () { S.kip = 'strip'; calistir(); });
+  $('btnCopy').addEventListener('click', kopyala);
+  $('btnDownload').addEventListener('click', indir);
+  $('btnLib').addEventListener('click', function () { katmanAc('drawerLib'); });
+  $('btnTools').addEventListener('click', function () { katmanAc('drawerTools'); });
+  $('btnOpen').addEventListener('click', function () { $('filePick').click(); });
+  $('btnSample').addEventListener('click', function () { input.value = ORNEK; calistir(); });
+  $('btnClear').addEventListener('click', temizle);
+  $('btnSwap').addEventListener('click', cikisiGirdiyeAl);
+  $('btnToggleOpts').addEventListener('click', ayarCubugu);
+  $('btnTheme').addEventListener('click', temaDegistir);
+  $('btnHelp').addEventListener('click', function () { katmanAc('helpModal'); });
+  $('tabNew').addEventListener('click', function () { yeniSekme(); });
+
+  $('btnPaste').addEventListener('click', function () {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      flash('Tarayıcı pano okumasına izin vermiyor — Ctrl+V kullanın.');
+      input.focus(); return;
+    }
+    navigator.clipboard.readText().then(function (t) {
+      input.value = t; calistir(); flash('Panodan alındı.');
+    }, function () { flash('Pano okunamadı — Ctrl+V kullanın.'); input.focus(); });
+  });
+
+  $('filePick').addEventListener('change', function (e) {
+    dosyaOku(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  /* Sürükle-bırak */
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    document.addEventListener(ev, function (e) {
+      if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') >= 0) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+  });
+  document.addEventListener('drop', function (e) {
+    if (!e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    dosyaOku(e.dataTransfer.files[0]);
+  });
+
+  /* Bul & değiştir çubuğu */
+  $('findQ').addEventListener('input', function () { findScan(); });
+  $('findCase').addEventListener('change', function () { findScan(); });
+  $('findRe').addEventListener('change', function () { findScan(); });
+  $('findQ').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); findGo(e.shiftKey ? -1 : 1); }
+    if (e.key === 'Escape') { e.preventDefault(); findKapat(); }
+  });
+  $('findR').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); findReplace(e.shiftKey); }
+    if (e.key === 'Escape') { e.preventDefault(); findKapat(); }
+  });
+  $('findNext').addEventListener('click', function () { findGo(1); });
+  $('findPrev').addEventListener('click', function () { findGo(-1); });
+  $('findRepl').addEventListener('click', function () { findReplace(false); });
+  $('findReplAll').addEventListener('click', function () { findReplace(true); });
+  $('findClose').addEventListener('click', findKapat);
+
+  /* Komut paleti */
+  $('palQ').addEventListener('input', function () { palSec = 0; palRender(); });
+  $('palQ').addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); palSec = Math.min(palSec + 1, palListe.length - 1); palMark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); palSec = Math.max(palSec - 1, 0); palMark(); }
+    else if (e.key === 'Enter') { e.preventDefault(); palCalistir(palSec); }
+    else if (e.key === 'Escape') { e.preventDefault(); katmanKapat(); }
+  });
+
+  /* Kapatma düğmeleri ve perde */
+  $$('[data-close]').forEach(function (b) {
+    b.addEventListener('click', katmanKapat);
+  });
+  $('scrim').addEventListener('click', katmanKapat);
+  $$('.modal').forEach(function (m) {
+    m.addEventListener('mousedown', function (e) { if (e.target === m) katmanKapat(); });
+  });
+
+  /* Kısayollar */
+  document.addEventListener('keydown', function (e) {
+    var mod = e.ctrlKey || e.metaKey;
+
+    if (e.key === 'Escape') {
+      if (acikKatman) { e.preventDefault(); katmanKapat(); return; }
+      if (!$('findbar').hidden) { e.preventDefault(); findKapat(); return; }
+    }
+    if (!mod) return;
+
+    var k = e.key.toLowerCase();
+
+    if (k === 'enter') { e.preventDefault(); S.kip = 'format'; calistir(); return; }
+    if (k === 'm' && e.shiftKey) { e.preventDefault(); S.kip = 'minify'; calistir(); return; }
+    if (k === 'c' && e.shiftKey) { e.preventDefault(); kopyala(); return; }
+    if (k === 'f') { e.preventDefault(); findAc(); return; }
+    if (k === 'k') { e.preventDefault(); palAc(); return; }
+    if (k === 'b') { e.preventDefault(); $('optSide').checked = !$('optSide').checked; yanPanel(); return; }
+    if (k === 't') { e.preventDefault(); yeniSekme(); return; }
+    if (k === 'w') { e.preventDefault(); sekmeKapat(S.aktif); return; }
+    if (k === '/') { e.preventDefault(); katmanAc('helpModal'); return; }
+    if (k === 's') { e.preventDefault(); document.dispatchEvent(new CustomEvent('kisayol:kaydet')); return; }
+    if (/^[1-9]$/.test(k)) {
+      var i = parseInt(k, 10) - 1;
+      if (S.tabs[i]) { e.preventDefault(); sekmeyeGec(S.tabs[i].id); }
+    }
+  });
+
+  /* ============================================================
+     Dışa açılan yüzey (Library ve Tools kullanır)
+     ============================================================ */
+
+  App.Shell = {
+    girdi: function () { return input.value; },
+    girdiyeYaz: function (text, ad) {
+      if (ad) {
+        var t = aktifSekme();
+        if (t && !t.sql.trim()) sekmeAdlandir(ad);
+        else yeniSekme(ad, '', false);
+      }
+      input.value = text;
+      calistir();
+    },
+    girdiyeEkle: function (text) {
+      input.focus();
+      var pos = input.selectionEnd;
+      input.setSelectionRange(pos, pos);
+      if (!document.execCommand('insertText', false, text)) {
+        input.value = input.value.slice(0, pos) + text + input.value.slice(pos);
+      }
+      calistir();
+    },
+    cikti: function () { return S.sonCikti; },
+    analiz: function () { return S.sonAnaliz; },
+    opts: opts,
+    flash: flash,
+    katmanAc: katmanAc,
+    katmanKapat: katmanKapat,
+    aktifSekme: aktifSekme,
+    sekmeAdlandir: sekmeAdlandir,
+    yeniSekme: yeniSekme,
+    sekmeleriTazele: renderTabs,
+    kaydetTaslak: kaydetTaslak,
+    calistir: calistir,
+    $: $, $$: $$
+  };
+
+  /* ============================================================
+     Açılış
+     ============================================================ */
+
+  komutlariKur();
+
+  Promise.all([
+    App.Store.get('tema'), App.Store.get('ayarlar'),
+    App.Store.get('sekmeler'), App.Store.get('fontBoyu'),
+    App.Store.get('ayarGizli')
+  ]).then(function (r) {
+    setTheme(r[0] === 'dark' || r[0] === 'light' ? r[0]
+      : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    loadOpts(r[1]);
+    if (r[3]) document.documentElement.style.setProperty('--fs-code', r[3] + 'px');
+    if (r[4]) $('controls').classList.add('collapsed');
+
+    var t = r[2];
+    if (t && t.tabs && t.tabs.length) {
+      S.tabs = t.tabs;
+      S.aktif = t.aktif && t.tabs.some(function (x) { return x.id === t.aktif; })
+        ? t.aktif : t.tabs[0].id;
+      var cur = aktifSekme();
+      input.value = cur ? cur.sql : '';
+      renderTabs();
+    } else {
+      S.tabs = [{ id: uid(), ad: 'Sorgu 1', sql: '', kayit: null }];
+      S.aktif = S.tabs[0].id;
+      renderTabs();
+    }
+
+    $('side').hidden = !$('optSide').checked;
+    S.yuklendi = true;
+    renderInGutter();
+    calistir(true);
+    document.dispatchEvent(new CustomEvent('kabuk:hazir'));
+  });
+})(window.App, window.SQL);
+</script>
+
+<!-- ============================================================
+     App.Library — kayıtlı sorgular
+     Diskteki gerçek bir klasöre bağlanır: her sorgu kendi .sql
+     dosyasıdır (SSMS'te doğrudan açılabilir), üst veri
+     _kutuphane.json içinde tutulur. Klasör erişimi yoksa
+     (file:// açılışı) tarayıcı belleğine düşer.
+     ============================================================ -->
+<script>
+(function (App, SQL) {
+  'use strict';
+
+  var Sh = App.Shell, $ = Sh.$, $$ = Sh.$$;
+  var META = '_kutuphane.json';
+
+  var L = { handle: null, klasor: null, items: [], filtre: '', etiket: null };
+
+  function uid() { return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function simdi() { return Date.now(); }
+
+  function dosyaAdi(ad) {
+    var s = String(ad || 'sorgu')
+      .replace(/[\/\\:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    return (s || 'sorgu') + '.sql';
+  }
+
+  function tarih(ts) {
+    if (!ts) return '';
+    var d = new Date(ts), p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /* ============================================================
+     Dosya sistemi
+     ============================================================ */
+
+  function izinAl(handle, mod) {
+    if (!handle || !handle.queryPermission) return Promise.resolve(true);
+    var o = { mode: mod || 'readwrite' };
+    return handle.queryPermission(o).then(function (p) {
+      if (p === 'granted') return true;
+      return handle.requestPermission(o).then(function (q) { return q === 'granted'; });
+    }).catch(function () { return false; });
+  }
+
+  function klasorBagla() {
+    if (!App.Store.hasFS) return;
+    window.showDirectoryPicker({ mode: 'readwrite', id: 'sqlfoy' }).then(function (h) {
+      L.handle = h;
+      L.klasor = h.name;
+      return App.Store.set('libHandle', h).then(function () { return klasordenOku(); });
+    }).then(function () {
+      Sh.flash('“' + L.klasor + '” klasörüne bağlandı.');
+      durum(); render();
+    }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;
+      Sh.flash('Klasör bağlanamadı: ' + (err && err.message));
+    });
+  }
+
+  function klasorCoz() {
+    L.handle = null; L.klasor = null;
+    App.Store.del('libHandle');
+    yerelYukle();
+    durum(); render();
+    Sh.flash('Klasör bağlantısı kesildi — kayıtlar tarayıcıda tutuluyor.');
+  }
+
+  /** Klasördeki .sql dosyalarını ve üst veriyi okur */
+  function klasordenOku() {
+    if (!L.handle) return Promise.resolve();
+    return izinAl(L.handle).then(function (ok) {
+      if (!ok) { Sh.flash('Klasöre erişim izni verilmedi.'); return; }
+
+      var meta = null, dosyalar = {};
+      var p = L.handle.getFileHandle(META).then(function (fh) {
+        return fh.getFile().then(function (f) { return f.text(); });
+      }).then(function (txt) {
+        try { meta = JSON.parse(txt); } catch (e) { meta = null; }
+      }).catch(function () { meta = null; });
+
+      return p.then(function () {
+        var okuma = [];
+        return (function tara() {
+          var it = L.handle.values();
+          function adim() {
+            return it.next().then(function (r) {
+              if (r.done) return Promise.all(okuma);
+              var e = r.value;
+              if (e.kind === 'file' && /\.sql$/i.test(e.name)) {
+                okuma.push(e.getFile().then(function (f) { return f.text(); })
+                  .then(function (t) { dosyalar[e.name] = t; })
+                  .catch(function () {}));
+              }
+              return adim();
+            });
+          }
+          return adim();
+        })();
+      }).then(function () {
+        var kayitlar = (meta && meta.kayitlar) || [];
+        var gorulen = {};
+        L.items = [];
+
+        kayitlar.forEach(function (k) {
+          if (!k || !k.dosya) return;
+          if (!(k.dosya in dosyalar)) return; /* dosya silinmişse kaydı düşür */
+          gorulen[k.dosya] = true;
+          L.items.push({
+            id: k.id || uid(), ad: k.ad || k.dosya.replace(/\.sql$/i, ''),
+            dosya: k.dosya, sql: dosyalar[k.dosya],
+            etiketler: k.etiketler || [], guncel: k.guncel || simdi(),
+            favori: !!k.favori, gecmis: k.gecmis || []
+          });
+        });
+
+        /* Üst veride olmayan .sql dosyaları da kütüphaneye alınır */
+        Object.keys(dosyalar).forEach(function (dn) {
+          if (gorulen[dn]) return;
+          L.items.push({
+            id: uid(), ad: dn.replace(/\.sql$/i, ''), dosya: dn,
+            sql: dosyalar[dn], etiketler: [], guncel: simdi(),
+            favori: false, gecmis: []
+          });
+        });
+
+        sirala();
+      });
+    });
+  }
+
+  function metaYaz() {
+    if (!L.handle) { yerelKaydet(); return Promise.resolve(); }
+    var veri = {
+      surum: 1, guncellendi: simdi(),
+      kayitlar: L.items.map(function (k) {
+        return { id: k.id, ad: k.ad, dosya: k.dosya, etiketler: k.etiketler,
+                 guncel: k.guncel, favori: k.favori, gecmis: k.gecmis };
+      })
+    };
+    return L.handle.getFileHandle(META, { create: true }).then(function (fh) {
+      return fh.createWritable();
+    }).then(function (w) {
+      return w.write(JSON.stringify(veri, null, 2)).then(function () { return w.close(); });
+    }).catch(function (e) {
+      Sh.flash('Üst veri yazılamadı: ' + e.message);
+    });
+  }
+
+  function dosyaYaz(kayit) {
+    if (!L.handle) { yerelKaydet(); return Promise.resolve(); }
+    return L.handle.getFileHandle(kayit.dosya, { create: true }).then(function (fh) {
+      return fh.createWritable();
+    }).then(function (w) {
+      return w.write(kayit.sql).then(function () { return w.close(); });
+    });
+  }
+
+  function dosyaSil(kayit) {
+    if (!L.handle) return Promise.resolve();
+    return L.handle.removeEntry(kayit.dosya).catch(function () {});
+  }
+
+  /* ============================================================
+     Tarayıcı belleği (yedek yol)
+     ============================================================ */
+
+  function yerelKaydet() {
+    App.Store.set('libItems', L.items.map(function (k) {
+      return { id: k.id, ad: k.ad, dosya: k.dosya, sql: k.sql, etiketler: k.etiketler,
+               guncel: k.guncel, favori: k.favori, gecmis: k.gecmis };
+    }));
+  }
+
+  function yerelYukle() {
+    return App.Store.get('libItems').then(function (v) {
+      L.items = Array.isArray(v) ? v : [];
+      sirala();
+    });
+  }
+
+  function sirala() {
+    L.items.sort(function (a, b) {
+      if (!!b.favori !== !!a.favori) return b.favori ? 1 : -1;
+      return (b.guncel || 0) - (a.guncel || 0);
+    });
+  }
+
+  /* ============================================================
+     İşlemler
+     ============================================================ */
+
+  function kaydet(ad, sql, etiketler) {
+    ad = (ad || '').trim();
+    if (!ad) { Sh.flash('Bir ad yazın.'); $('libName').focus(); return; }
+    if (!sql.trim()) { Sh.flash('Kaydedilecek sorgu boş.'); return; }
+
+    var varolan = null;
+    L.items.forEach(function (k) { if (k.ad.toLowerCase() === ad.toLowerCase()) varolan = k; });
+
+    if (varolan) {
+      if (!confirm('“' + ad + '” zaten var. Üzerine yazılsın mı?\n\n' +
+                   'Önceki hâli sürüm geçmişinde saklanır.')) return;
+      varolan.gecmis = (varolan.gecmis || []);
+      varolan.gecmis.unshift({ t: varolan.guncel, sql: varolan.sql });
+      varolan.gecmis = varolan.gecmis.slice(0, 5);
+      varolan.sql = sql;
+      varolan.guncel = simdi();
+      varolan.etiketler = etiketler;
+      yaz(varolan, ad);
+      return;
+    }
+
+    var k = {
+      id: uid(), ad: ad, dosya: dosyaAdi(ad), sql: sql,
+      etiketler: etiketler, guncel: simdi(), favori: false, gecmis: []
+    };
+    /* Dosya adı çakışırsa numara ekle */
+    var n = 1;
+    while (L.items.some(function (x) { return x.dosya === k.dosya; })) {
+      k.dosya = dosyaAdi(ad + ' (' + (++n) + ')');
+    }
+    L.items.push(k);
+    yaz(k, ad);
+  }
+
+  function yaz(kayit, ad) {
+    sirala();
+    dosyaYaz(kayit).then(metaYaz).then(function () {
+      var t = Sh.aktifSekme();
+      if (t) { t.kayit = kayit.id; Sh.sekmeleriTazele(); Sh.kaydetTaslak(); }
+      $('libName').value = ''; $('libTags').value = '';
+      render();
+      Sh.flash('“' + ad + '” kaydedildi' + (L.klasor ? ' → ' + kayit.dosya : '.'));
+    }).catch(function (e) {
+      Sh.flash('Kaydedilemedi: ' + e.message);
+    });
+  }
+
+  function yukle(k) {
+    var sql = k.sql;
+    var yer = sablonAlanlari(sql);
+    if (yer.length) {
+      for (var i = 0; i < yer.length; i++) {
+        var v = prompt('Şablon değeri — ' + yer[i], '');
+        if (v === null) return;
+        sql = sql.split('{{' + yer[i] + '}}').join(v);
+      }
+    }
+    Sh.girdiyeYaz(sql, k.ad);
+    var t = Sh.aktifSekme();
+    if (t) { t.kayit = k.id; Sh.sekmeleriTazele(); }
+    Sh.katmanKapat();
+    Sh.flash('“' + k.ad + '” yüklendi.');
+  }
+
+  function sablonAlanlari(sql) {
+    var re = /\{\{\s*([^}]+?)\s*\}\}/g, m, out = [], gor = {};
+    while ((m = re.exec(sql))) {
+      if (!gor[m[1]]) { gor[m[1]] = true; out.push(m[1]); }
+    }
+    return out;
+  }
+
+  function sil(k) {
+    if (!confirm('“' + k.ad + '” silinsin mi?' +
+                 (L.klasor ? '\n\n' + k.dosya + ' dosyası diskten kaldırılacak.' : ''))) return;
+    L.items = L.items.filter(function (x) { return x.id !== k.id; });
+    dosyaSil(k).then(metaYaz).then(function () {
+      render();
+      Sh.flash('“' + k.ad + '” silindi.');
+    });
+  }
+
+  function favori(k) {
+    k.favori = !k.favori;
+    sirala(); metaYaz(); render();
+  }
+
+  function surumGeriAl(k, idx) {
+    var g = k.gecmis[idx];
+    if (!g) return;
+    if (!confirm('“' + k.ad + '” kaydı ' + tarih(g.t) + ' hâline döndürülsün mü?')) return;
+    k.gecmis.unshift({ t: k.guncel, sql: k.sql });
+    k.gecmis = k.gecmis.slice(0, 5);
+    k.sql = g.sql;
+    k.guncel = simdi();
+    dosyaYaz(k).then(metaYaz).then(function () {
+      render();
+      Sh.flash('Önceki sürüm geri alındı.');
+    });
+  }
+
+  /* ============================================================
+     Çizim
+     ============================================================ */
+
+  function durum() {
+    var fsRow = $('libFsRow');
+    if (!App.Store.hasFS) {
+      fsRow.querySelector('.row').style.display = 'none';
+      $('libFsStatus').textContent =
+        'Bu tarayıcı/açılış biçiminde klasöre yazma kullanılamıyor. Kayıtlar tarayıcıda ' +
+        'tutuluyor; taşımak için JSON dışa aktarımını kullanın.';
+      $('modeStamp').textContent = 'yerel';
+      return;
+    }
+    $('libConnect').hidden = !!L.handle;
+    $('libDisconnect').hidden = !L.handle;
+    $('libFsStatus').textContent = L.handle
+      ? 'Bağlı klasör: ' + L.klasor + ' — her sorgu ayrı .sql dosyası olarak yazılıyor.'
+      : 'Bağlı değil — kayıtlar tarayıcıda tutuluyor. Klasöre bağlanırsanız gerçek .sql ' +
+        'dosyaları oluşur.';
+    $('modeStamp').textContent = L.handle ? 'klasör' : 'yerel';
+    $('modeStamp').title = L.handle ? 'Kayıtlar “' + L.klasor + '” klasörüne yazılıyor'
+                                    : 'Kayıtlar tarayıcı belleğinde';
+  }
+
+  function etiketBulutu() {
+    var say = {};
+    L.items.forEach(function (k) {
+      (k.etiketler || []).forEach(function (e) { say[e] = (say[e] || 0) + 1; });
+    });
+    var box = $('libTagCloud');
+    box.innerHTML = '';
+    Object.keys(say).sort().forEach(function (e) {
+      var b = document.createElement('button');
+      b.className = 'tag' + (L.etiket === e ? ' on' : '');
+      b.textContent = e + ' · ' + say[e];
+      b.addEventListener('click', function () {
+        L.etiket = (L.etiket === e) ? null : e;
+        render();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function render() {
+    etiketBulutu();
+    var q = L.filtre.toLowerCase().trim();
+    var liste = L.items.filter(function (k) {
+      if (L.etiket && (k.etiketler || []).indexOf(L.etiket) < 0) return false;
+      if (!q) return true;
+      return (k.ad + ' ' + (k.etiketler || []).join(' ') + ' ' + k.sql).toLowerCase()
+        .indexOf(q) >= 0;
+    });
+
+    var ul = $('libList');
+    ul.innerHTML = '';
+
+    if (!liste.length) {
+      var li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = L.items.length ? 'Aramaya uyan kayıt yok.' : 'Henüz kayıt yok.';
+      ul.appendChild(li);
+    }
+
+    liste.forEach(function (k) {
+      var li = document.createElement('li');
+      li.className = 'lib-item';
+
+      var top = document.createElement('div');
+      top.className = 'top';
+      var star = document.createElement('button');
+      star.className = 'star' + (k.favori ? ' on' : '');
+      star.textContent = k.favori ? '★' : '☆';
+      star.title = 'Favori';
+      star.setAttribute('aria-label', 'Favori');
+      star.addEventListener('click', function () { favori(k); });
+      var nm = document.createElement('span');
+      nm.className = 'nm'; nm.textContent = k.ad;
+      var meta = document.createElement('span');
+      meta.className = 'meta'; meta.textContent = tarih(k.guncel);
+      top.appendChild(star); top.appendChild(nm); top.appendChild(meta);
+
+      var prev = document.createElement('div');
+      prev.className = 'prev';
+      prev.textContent = k.sql.replace(/\s+/g, ' ').slice(0, 160);
+
+      var ops = document.createElement('div');
+      ops.className = 'ops';
+      [['Yükle', function () { yukle(k); }],
+       ['Girdiye ekle', function () { Sh.girdiyeEkle('\n' + k.sql + '\n'); Sh.katmanKapat(); }],
+       ['Üzerine yaz', function () {
+          k.gecmis = (k.gecmis || []);
+          k.gecmis.unshift({ t: k.guncel, sql: k.sql });
+          k.gecmis = k.gecmis.slice(0, 5);
+          k.sql = Sh.girdi(); k.guncel = simdi();
+          dosyaYaz(k).then(metaYaz).then(function () { render(); Sh.flash('Güncellendi.'); });
+        }],
+       ['Sil', function () { sil(k); }]
+      ].forEach(function (x) {
+        var b = document.createElement('button');
+        b.className = 'btn'; b.textContent = x[0];
+        b.addEventListener('click', x[1]);
+        ops.appendChild(b);
+      });
+
+      if (k.gecmis && k.gecmis.length) {
+        var sel = document.createElement('select');
+        sel.className = 'btn';
+        sel.innerHTML = '<option value="">geçmiş (' + k.gecmis.length + ')</option>';
+        k.gecmis.forEach(function (g, i) {
+          var o = document.createElement('option');
+          o.value = String(i); o.textContent = tarih(g.t);
+          sel.appendChild(o);
+        });
+        sel.addEventListener('change', function () {
+          if (sel.value !== '') surumGeriAl(k, parseInt(sel.value, 10));
+          sel.value = '';
+        });
+        ops.appendChild(sel);
+      }
+
+      li.appendChild(top);
+      if (k.etiketler && k.etiketler.length) {
+        var tl = document.createElement('div');
+        tl.className = 'tagline';
+        k.etiketler.forEach(function (e) {
+          var sp = document.createElement('span');
+          sp.className = 'tag'; sp.textContent = e;
+          tl.appendChild(sp);
+        });
+        li.appendChild(tl);
+      }
+      li.appendChild(prev);
+      li.appendChild(ops);
+      ul.appendChild(li);
+    });
+
+    $('libCount').textContent = L.items.length + ' kayıt' +
+      (L.klasor ? ' · ' + L.klasor : '');
+  }
+
+  /* ============================================================
+     JSON dışa / içe aktarma
+     ============================================================ */
+
+  function disaAktar() {
+    var veri = { surum: 1, disaAktarim: simdi(), kayitlar: L.items };
+    var blob = new Blob([JSON.stringify(veri, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'sql-foy-kutuphane.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+    Sh.flash(L.items.length + ' kayıt indirildi.');
+  }
+
+  function iceAktar(file) {
+    var fr = new FileReader();
+    fr.onload = function () {
+      var veri;
+      try { veri = JSON.parse(String(fr.result)); }
+      catch (e) { Sh.flash('JSON okunamadı.'); return; }
+      var gelen = (veri && (veri.kayitlar || veri.items)) || [];
+      if (!Array.isArray(gelen) || !gelen.length) { Sh.flash('Dosyada kayıt yok.'); return; }
+
+      var eklendi = 0;
+      gelen.forEach(function (g) {
+        if (!g || !g.sql) return;
+        var ad = g.ad || g.name || 'Adsız';
+        if (L.items.some(function (x) { return x.ad.toLowerCase() === ad.toLowerCase(); })) return;
+        var k = {
+          id: uid(), ad: ad, dosya: dosyaAdi(ad), sql: g.sql,
+          etiketler: g.etiketler || [], guncel: g.guncel || simdi(),
+          favori: !!g.favori, gecmis: g.gecmis || []
+        };
+        var n = 1;
+        while (L.items.some(function (x) { return x.dosya === k.dosya; })) {
+          k.dosya = dosyaAdi(ad + ' (' + (++n) + ')');
+        }
+        L.items.push(k); eklendi++;
+      });
+
+      sirala();
+      var zincir = Promise.resolve();
+      if (L.handle) {
+        L.items.forEach(function (k) { zincir = zincir.then(function () { return dosyaYaz(k); }); });
+      }
+      zincir.then(metaYaz).then(function () {
+        render();
+        Sh.flash(eklendi + ' kayıt eklendi' + (gelen.length - eklendi ? ' (' +
+          (gelen.length - eklendi) + ' aynı adla zaten vardı).' : '.'));
+      });
+    };
+    fr.readAsText(file, 'utf-8');
+  }
+
+  /* ============================================================
+     Bağlantılar
+     ============================================================ */
+
+  $('libConnect').addEventListener('click', klasorBagla);
+  $('libDisconnect').addEventListener('click', klasorCoz);
+  $('libReload').addEventListener('click', function () {
+    (L.handle ? klasordenOku() : yerelYukle()).then(function () {
+      render(); Sh.flash('Yenilendi.');
+    });
+  });
+
+  $('libSave').addEventListener('click', function () {
+    var etiketler = $('libTags').value.split(',').map(function (s) { return s.trim(); })
+      .filter(Boolean);
+    kaydet($('libName').value, Sh.girdi(), etiketler);
+  });
+  $('libName').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('libSave').click(); }
+  });
+  $('libFilter').addEventListener('input', function () {
+    L.filtre = $('libFilter').value; render();
+  });
+  $('libExport').addEventListener('click', disaAktar);
+  $('libImport').addEventListener('click', function () { $('libFile').click(); });
+  $('libFile').addEventListener('change', function (e) {
+    if (e.target.files[0]) iceAktar(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  /* Ctrl+S: bağlı kayıt varsa üzerine yaz, yoksa çekmeceyi aç */
+  document.addEventListener('kisayol:kaydet', function () {
+    var t = Sh.aktifSekme();
+    var bagli = t && t.kayit && L.items.filter(function (k) { return k.id === t.kayit; })[0];
+    if (bagli) {
+      bagli.gecmis = (bagli.gecmis || []);
+      bagli.gecmis.unshift({ t: bagli.guncel, sql: bagli.sql });
+      bagli.gecmis = bagli.gecmis.slice(0, 5);
+      bagli.sql = Sh.girdi();
+      bagli.guncel = simdi();
+      sirala();
+      dosyaYaz(bagli).then(metaYaz).then(function () {
+        render(); Sh.flash('“' + bagli.ad + '” güncellendi.');
+      });
+      return;
+    }
+    Sh.katmanAc('drawerLib');
+    var t2 = Sh.aktifSekme();
+    $('libName').value = (t2 && t2.ad) || '';
+    $('libName').focus(); $('libName').select();
+  });
+
+  /* ============================================================
+     Açılış — daha önce bağlanılan klasöre sessizce dön
+     ============================================================ */
+
+  document.addEventListener('kabuk:hazir', function () {
+    durum();
+    if (!App.Store.hasFS) { yerelYukle().then(render); return; }
+
+    App.Store.get('libHandle').then(function (h) {
+      if (!h || !h.queryPermission) { return yerelYukle(); }
+      return h.queryPermission({ mode: 'readwrite' }).then(function (p) {
+        if (p !== 'granted') {
+          /* İzin kullanıcı hareketi ister; çekmece açılınca sorulur */
+          L.handle = h; L.klasor = h.name;
+          Sh.flash('“' + h.name + '” klasörü için izin bekleniyor — Kütüphane’yi açın.');
+          return yerelYukle();
+        }
+        L.handle = h; L.klasor = h.name;
+        return klasordenOku();
+      });
+    }).catch(function () { return yerelYukle(); })
+      .then(function () { durum(); render(); });
+  });
+
+  /* Çekmece açılınca izin tazele */
+  document.addEventListener('katman:ac', function (e) {
+    if (e.detail !== 'drawerLib' || !L.handle) return;
+    izinAl(L.handle).then(function (ok) {
+      if (!ok) return;
+      return klasordenOku().then(function () { durum(); render(); });
+    });
+  });
+
+  App.Library = {
+    items: function () { return L.items; },
+    kaydet: kaydet,
+    render: render
+  };
+})(window.App, window.SQL);
+</script>
+
+<!-- ============================================================
+     App.Tools — yardımcı araçlar
+     Excel→IN, IN→VALUES, karşılaştırma, kod stringi,
+     parametreleştirme, yeniden adlandırma, dışa aktarma.
+     ============================================================ -->
+<script>
+(function (App, SQL) {
+  'use strict';
+
+  var Sh = App.Shell, $ = Sh.$, $$ = Sh.$$;
+  var aktifArac = 'in';
+
+  function esc(s) { return SQL.Paint.esc(s); }
+
+  function panoyaYaz(text, ad) {
+    if (!text) { Sh.flash('Kopyalanacak bir şey yok.'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { Sh.flash((ad || 'Sonuç') + ' panoya kopyalandı.'); },
+        function () { Sh.flash('Kopyalanamadı.'); });
+    } else Sh.flash('Kopyalanamadı.');
+  }
+
+  /* ============================================================
+     Ortak yardımcılar
+     ============================================================ */
+
+  /** Excel/CSV yapıştırmasını hücrelere ayırır */
+  function hucreleriAyir(text, ayirici) {
+    if (!text) return [];
+    var parts;
+    if (ayirici === 'satir') parts = text.split(/\r?\n/);
+    else if (ayirici === 'virgul') parts = text.split(/[,;\r\n]+/);
+    else parts = text.split(/[\t\r\n]+/);   /* varsayılan: Excel sütunu */
+    return parts.map(function (s) { return s.trim(); });
+  }
+
+  function tirnakla(v) {
+    return "'" + String(v).replace(/'/g, "''") + "'";
+  }
+
+  function sayiMi(v) { return /^-?\d+(\.\d+)?$/.test(v); }
+
+  function grupla(arr, n) {
+    if (!n || n < 1) return [arr];
+    var out = [];
+    for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  }
+
+  /* ============================================================
+     Panel tanımları
+     ============================================================ */
+
+  var PANELLER = {
+
+    /* ---------- Excel → IN listesi ---------- */
+    in: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Excel sütununu ya da virgüllü listeyi yapıştırın; ' +
+        '     <code>IN (…)</code> listesine çevrilir.</p>' +
+        '  <div class="field"><label for="tIn">Yapıştırılan veri</label>' +
+        '    <textarea id="tIn" placeholder="12345&#10;67890&#10;…"></textarea></div>' +
+        '  <div class="row">' +
+        '    <label class="chk"><input type="checkbox" id="tInQuote" checked> Tırnakla</label>' +
+        '    <label class="chk"><input type="checkbox" id="tInDedup" checked> Tekilleştir</label>' +
+        '    <label class="chk"><input type="checkbox" id="tInEmpty" checked> Boşları at</label>' +
+        '    <label class="chk">Satır başına ' +
+        '      <input type="number" id="tInPer" value="10" min="1" max="500" ' +
+        '             style="width:64px"></label>' +
+        '  </div>' +
+        '  <div class="row"><span class="lbl">Ayırıcı</span>' +
+        '    <select id="tInSep" style="flex:0 0 auto">' +
+        '      <option value="oto">Otomatik (tab/satır)</option>' +
+        '      <option value="satir">Yalnızca satır sonu</option>' +
+        '      <option value="virgul">Virgül / noktalı virgül</option>' +
+        '    </select>' +
+        '    <span class="hintline" id="tInSay"></span>' +
+        '  </div>' +
+        '  <div class="out-box" id="tInOut"></div>' +
+        '  <div class="row">' +
+        '    <button class="btn primary" id="tInCopy">Kopyala</button>' +
+        '    <button class="btn" id="tInInsert">Girdiye ekle</button>' +
+        '    <button class="btn" id="tInClear">Temizle</button>' +
+        '  </div>' +
+        '</div>',
+      init: function () {
+        function hesapla() {
+          var raw = $('tIn').value;
+          var cells = hucreleriAyir(raw, $('tInSep').value);
+          if ($('tInEmpty').checked) cells = cells.filter(function (c) { return c !== ''; });
+          var toplam = cells.length;
+          if ($('tInDedup').checked) {
+            var gor = Object.create(null), out = [];
+            cells.forEach(function (c) {
+              var k = c.toLowerCase();
+              if (!gor[k]) { gor[k] = 1; out.push(c); }
+            });
+            cells = out;
+          }
+          var q = $('tInQuote').checked;
+          var vals = cells.map(function (c) {
+            return (q && !sayiMi(c)) || q ? tirnakla(c) : c;
+          });
+          var per = parseInt($('tInPer').value, 10) || 10;
+          var satirlar = grupla(vals, per).map(function (g) { return '    ' + g.join(', '); });
+          var metin = vals.length ? 'IN (\n' + satirlar.join(',\n') + '\n)' : '';
+          $('tInOut').textContent = metin;
+          $('tInSay').textContent = toplam
+            ? toplam + ' değer' + (toplam !== cells.length
+                ? ' → ' + cells.length + ' tekil' : '')
+            : '';
+          return metin;
+        }
+        ['tIn', 'tInQuote', 'tInDedup', 'tInEmpty', 'tInPer', 'tInSep'].forEach(function (id) {
+          $(id).addEventListener('input', hesapla);
+          $(id).addEventListener('change', hesapla);
+        });
+        $('tInCopy').addEventListener('click', function () {
+          panoyaYaz($('tInOut').textContent, 'IN listesi');
+        });
+        $('tInInsert').addEventListener('click', function () {
+          var t = $('tInOut').textContent;
+          if (!t) return;
+          Sh.girdiyeEkle(' ' + t);
+          Sh.katmanKapat();
+        });
+        $('tInClear').addEventListener('click', function () {
+          $('tIn').value = ''; hesapla(); $('tIn').focus();
+        });
+        hesapla();
+      }
+    },
+
+    /* ---------- IN listesi → VALUES / geçici tablo ---------- */
+    values: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Değer listesini <code>VALUES</code> tablosuna ya da ' +
+        '     geçici tabloya çevirir.</p>' +
+        '  <div class="field"><label for="tVIn">Değerler</label>' +
+        '    <textarea id="tVIn" placeholder="12345&#10;67890"></textarea></div>' +
+        '  <div class="row">' +
+        '    <span class="lbl">Biçim</span>' +
+        '    <select id="tVMode" style="flex:0 0 auto">' +
+        '      <option value="values">VALUES tablosu</option>' +
+        '      <option value="temp">#temp tablo (CREATE + INSERT)</option>' +
+        '      <option value="tvp">Tablo değişkeni (@tbl)</option>' +
+        '    </select>' +
+        '  </div>' +
+        '  <div class="row">' +
+        '    <label class="chk">Tablo <input type="text" id="tVTable" value="#liste" ' +
+        '           style="width:96px"></label>' +
+        '    <label class="chk">Kolon <input type="text" id="tVCol" value="deger" ' +
+        '           style="width:96px"></label>' +
+        '    <label class="chk">Tip <input type="text" id="tVType" value="nvarchar(50)" ' +
+        '           style="width:112px"></label>' +
+        '    <label class="chk"><input type="checkbox" id="tVQuote" checked> Tırnakla</label>' +
+        '  </div>' +
+        '  <div class="out-box" id="tVOut"></div>' +
+        '  <div class="row">' +
+        '    <button class="btn primary" id="tVCopy">Kopyala</button>' +
+        '    <button class="btn" id="tVInsert">Girdiye ekle</button>' +
+        '  </div>' +
+        '</div>',
+      init: function () {
+        function hesapla() {
+          var cells = hucreleriAyir($('tVIn').value, 'oto')
+            .filter(function (c) { return c !== ''; });
+          var q = $('tVQuote').checked;
+          var vals = cells.map(function (c) { return q ? tirnakla(c) : c; });
+          var tbl = $('tVTable').value.trim() || '#liste';
+          var col = $('tVCol').value.trim() || 'deger';
+          var tip = $('tVType').value.trim() || 'nvarchar(50)';
+          var mode = $('tVMode').value;
+          var out = '';
+
+          if (!vals.length) { $('tVOut').textContent = ''; return ''; }
+
+          var satirlar = vals.map(function (v) { return '    (' + v + ')'; }).join(',\n');
+
+          if (mode === 'values') {
+            out = '(VALUES\n' + satirlar + '\n) AS v (' + col + ')';
+          } else if (mode === 'temp') {
+            out = 'CREATE TABLE ' + tbl + ' (' + col + ' ' + tip + ');\n\n' +
+                  'INSERT INTO ' + tbl + ' (' + col + ')\nVALUES\n' + satirlar + ';';
+          } else {
+            out = 'DECLARE @tbl TABLE (' + col + ' ' + tip + ');\n\n' +
+                  'INSERT INTO @tbl (' + col + ')\nVALUES\n' + satirlar + ';';
+          }
+          $('tVOut').textContent = out;
+          return out;
+        }
+        ['tVIn', 'tVMode', 'tVTable', 'tVCol', 'tVType', 'tVQuote'].forEach(function (id) {
+          $(id).addEventListener('input', hesapla);
+          $(id).addEventListener('change', hesapla);
+        });
+        $('tVCopy').addEventListener('click', function () {
+          panoyaYaz($('tVOut').textContent, 'Sonuç');
+        });
+        $('tVInsert').addEventListener('click', function () {
+          if (!$('tVOut').textContent) return;
+          Sh.girdiyeEkle('\n' + $('tVOut').textContent + '\n');
+          Sh.katmanKapat();
+        });
+        hesapla();
+      }
+    },
+
+    /* ---------- Karşılaştırma ---------- */
+    diff: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">İki sorgu aynı ayarlarla biçimlendirilip satır satır ' +
+        '     karşılaştırılır — böylece yalnızca gerçek farklar görünür.</p>' +
+        '  <div class="field"><label for="tDA">A — sol</label>' +
+        '    <textarea id="tDA"></textarea></div>' +
+        '  <div class="field"><label for="tDB">B — sağ</label>' +
+        '    <textarea id="tDB"></textarea></div>' +
+        '  <div class="row">' +
+        '    <button class="btn" id="tDFromInput">A ← girdi</button>' +
+        '    <button class="btn" id="tDFromOutput">B ← föy</button>' +
+        '    <button class="btn primary" id="tDRun">Karşılaştır</button>' +
+        '    <label class="chk"><input type="checkbox" id="tDSame"> Aynı satırları göster</label>' +
+        '  </div>' +
+        '  <div class="hintline" id="tDSum"></div>' +
+        '  <div class="out-box" id="tDOut"></div>' +
+        '</div>',
+      init: function () {
+        function bicimle(t) {
+          try { return SQL.Print.format(t, Sh.opts()); } catch (e) { return t; }
+        }
+        /* En uzun ortak alt dizi — küçük sorgular için yeterli */
+        function lcs(a, b) {
+          var n = a.length, m = b.length;
+          if (n * m > 4000000) return null;
+          var dp = [], i, j;
+          for (i = 0; i <= n; i++) dp.push(new Uint32Array(m + 1));
+          for (i = n - 1; i >= 0; i--) {
+            for (j = m - 1; j >= 0; j--) {
+              dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1
+                                       : Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+          }
+          var out = [];
+          i = 0; j = 0;
+          while (i < n && j < m) {
+            if (a[i] === b[j]) { out.push({ t: '=', v: a[i] }); i++; j++; }
+            else if (dp[i + 1][j] >= dp[i][j + 1]) { out.push({ t: '-', v: a[i] }); i++; }
+            else { out.push({ t: '+', v: b[j] }); j++; }
+          }
+          while (i < n) out.push({ t: '-', v: a[i++] });
+          while (j < m) out.push({ t: '+', v: b[j++] });
+          return out;
+        }
+
+        function calistir() {
+          var a = bicimle($('tDA').value).split('\n');
+          var b = bicimle($('tDB').value).split('\n');
+          var d = lcs(a, b);
+          if (!d) { $('tDOut').textContent = 'Sorgular karşılaştırmak için fazla büyük.'; return; }
+          var ekle = 0, sil = 0;
+          var goster = $('tDSame').checked;
+          var html = d.map(function (x) {
+            if (x.t === '+') ekle++;
+            if (x.t === '-') sil++;
+            if (x.t === '=' && !goster) return '';
+            var cls = x.t === '+' ? 'add' : x.t === '-' ? 'del' : 'same';
+            var pre = x.t === '=' ? '  ' : x.t + ' ';
+            return '<span class="diff-line ' + cls + '">' + esc(pre + x.v) + '</span>';
+          }).join('');
+          $('tDOut').innerHTML = html ||
+            '<span class="empty">İki sorgu biçimlendirildiğinde birebir aynı.</span>';
+          $('tDSum').textContent = sil + ' satır A\'da, ' + ekle + ' satır B\'de farklı.' +
+            (!ekle && !sil ? ' Sorgular eşdeğer.' : '');
+        }
+
+        $('tDFromInput').addEventListener('click', function () { $('tDA').value = Sh.girdi(); });
+        $('tDFromOutput').addEventListener('click', function () { $('tDB').value = Sh.cikti(); });
+        $('tDRun').addEventListener('click', calistir);
+        $('tDSame').addEventListener('change', calistir);
+      }
+    },
+
+    /* ---------- Kod stringi ---------- */
+    code: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Föydeki sorguyu seçtiğiniz dile gömülecek biçimde kaçırır.</p>' +
+        '  <div class="row">' +
+        '    <span class="lbl">Dil</span>' +
+        '    <select id="tCLang" style="flex:0 0 auto">' +
+        '      <option value="csharp">C#</option>' +
+        '      <option value="python">Python</option>' +
+        '      <option value="java">Java</option>' +
+        '      <option value="js">JavaScript</option>' +
+        '      <option value="go">Go</option>' +
+        '    </select>' +
+        '    <label class="chk">Değişken ' +
+        '      <input type="text" id="tCVar" value="sql" style="width:96px"></label>' +
+        '    <label class="chk"><input type="checkbox" id="tCFromOut" checked> Föyü kullan</label>' +
+        '  </div>' +
+        '  <div class="out-box" id="tCOut"></div>' +
+        '  <div class="row"><button class="btn primary" id="tCCopy">Kopyala</button></div>' +
+        '</div>',
+      init: function () {
+        function kacir(sql, dil, ad) {
+          var satirlar = sql.split('\n');
+          if (dil === 'csharp') {
+            return 'const string ' + ad + ' = @"' +
+              sql.replace(/"/g, '""') + '";';
+          }
+          if (dil === 'python') {
+            var g = sql.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
+            return ad + ' = """\\\n' + g + '\n"""';
+          }
+          if (dil === 'java') {
+            return 'String ' + ad + ' =\n' + satirlar.map(function (l, i) {
+              return '    "' + l.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + ' "' +
+                     (i === satirlar.length - 1 ? ';' : ' +');
+            }).join('\n');
+          }
+          if (dil === 'js') {
+            return 'const ' + ad + ' = `' +
+              sql.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${') + '`;';
+          }
+          /* go */
+          return ad + ' := `' + sql.replace(/`/g, '` + "`" + `') + '`';
+        }
+        function hesapla() {
+          var sql = $('tCFromOut').checked ? (Sh.cikti() || Sh.girdi()) : Sh.girdi();
+          var ad = $('tCVar').value.trim() || 'sql';
+          $('tCOut').textContent = sql ? kacir(sql, $('tCLang').value, ad) : '';
+        }
+        ['tCLang', 'tCVar', 'tCFromOut'].forEach(function (id) {
+          $(id).addEventListener('input', hesapla);
+          $(id).addEventListener('change', hesapla);
+        });
+        $('tCCopy').addEventListener('click', function () {
+          panoyaYaz($('tCOut').textContent, 'Kod');
+        });
+        PANELLER.code.tazele = hesapla;
+        hesapla();
+      }
+    },
+
+    /* ---------- Parametreleştirme ---------- */
+    param: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Sorgudaki sabit değerleri <code>@p1</code>, <code>@p2</code> … ' +
+        '     hâline getirir ve karşılık tablosunu üretir. Metin sabitleri asla ' +
+        '     çözümlenmeden değiştirilmez.</p>' +
+        '  <div class="row">' +
+        '    <label class="chk"><input type="checkbox" id="tPStr" checked> Metinler</label>' +
+        '    <label class="chk"><input type="checkbox" id="tPNum" checked> Sayılar</label>' +
+        '    <label class="chk"><input type="checkbox" id="tPDecl" checked> DECLARE ekle</label>' +
+        '    <button class="btn primary" id="tPRun">Parametreleştir</button>' +
+        '  </div>' +
+        '  <div class="hintline" id="tPSum"></div>' +
+        '  <div class="out-box" id="tPOut"></div>' +
+        '  <div class="row">' +
+        '    <button class="btn" id="tPCopy">Kopyala</button>' +
+        '    <button class="btn" id="tPInsert">Girdiye yaz</button>' +
+        '  </div>' +
+        '</div>',
+      init: function () {
+        var sonuc = '';
+        function calistir() {
+          var sql = Sh.cikti() || Sh.girdi();
+          if (!sql) { Sh.flash('Önce bir sorgu girin.'); return; }
+          var toks = SQL.Lex.tokenize(sql).tokens;
+          var strOn = $('tPStr').checked, numOn = $('tPNum').checked;
+          var parcalar = [], pos = 0, n = 0, harita = [];
+
+          /* TOP / OFFSET / FETCH NEXT sayıları çıplak parametre kabul etmez */
+          var SAYAC_KW = { TOP: 1, OFFSET: 1, NEXT: 1, FIRST: 1 };
+          toks.forEach(function (t, i) {
+            var uygun = (t.type === 'string' && strOn) || (t.type === 'number' && numOn);
+            if (!uygun) return;
+            if (t.type === 'number') {
+              var onceki = null;
+              for (var j = i - 1; j >= 0; j--) {
+                if (toks[j].type !== 'comment') { onceki = toks[j]; break; }
+              }
+              if (onceki && onceki.type === 'word' && SAYAC_KW[onceki.up]) return;
+            }
+            parcalar.push([t.start, t.end, t.value]);
+          });
+
+          if (!parcalar.length) {
+            $('tPSum').textContent = 'Değiştirilecek sabit bulunamadı.';
+            $('tPOut').textContent = ''; sonuc = ''; return;
+          }
+
+          var out = '';
+          parcalar.forEach(function (p) {
+            out += sql.slice(pos, p[0]);
+            n++;
+            var ad = '@p' + n;
+            out += ad;
+            harita.push({ ad: ad, deger: p[2],
+                          tip: /^[NnBb]?'/.test(p[2]) ? 'nvarchar(200)'
+                             : (p[2].indexOf('.') >= 0 ? 'decimal(18,4)' : 'int') });
+            pos = p[1];
+          });
+          out += sql.slice(pos);
+
+          if ($('tPDecl').checked) {
+            var decl = harita.map(function (h) {
+              return 'DECLARE ' + h.ad + ' ' + h.tip + ' = ' + h.deger + ';';
+            }).join('\n');
+            out = decl + '\n\n' + out;
+          }
+
+          sonuc = out;
+          $('tPOut').textContent = out;
+          $('tPSum').textContent = n + ' sabit parametreye çevrildi.';
+        }
+        $('tPRun').addEventListener('click', calistir);
+        $('tPCopy').addEventListener('click', function () { panoyaYaz(sonuc, 'Sorgu'); });
+        $('tPInsert').addEventListener('click', function () {
+          if (!sonuc) return;
+          Sh.girdiyeYaz(sonuc);
+          Sh.katmanKapat();
+        });
+      }
+    },
+
+    /* ---------- Toplu yeniden adlandırma ---------- */
+    rename: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Tablo, şema ya da takma ad değiştirir. Değişiklik ' +
+        '     <b>token düzeyinde</b> yapılır: metin sabitlerinin ve yorumların içine ' +
+        '     dokunulmaz.</p>' +
+        '  <div class="row">' +
+        '    <label class="chk">Eski <input type="text" id="tRFrom" style="width:140px"></label>' +
+        '    <label class="chk">Yeni <input type="text" id="tRTo" style="width:140px"></label>' +
+        '  </div>' +
+        '  <div class="row">' +
+        '    <label class="chk"><input type="checkbox" id="tRCase"> Büyük/küçük duyarlı</label>' +
+        '    <label class="chk"><input type="checkbox" id="tRComment"> Yorumlarda da ara</label>' +
+        '    <button class="btn primary" id="tRRun">Önizle</button>' +
+        '  </div>' +
+        '  <div class="hintline" id="tRSum"></div>' +
+        '  <div class="out-box" id="tROut"></div>' +
+        '  <div class="row"><button class="btn" id="tRApply">Girdiye uygula</button></div>' +
+        '</div>',
+      init: function () {
+        var sonuc = '', sayi = 0;
+        function ciplak(v) {
+          var m = /^\[(.*)\]$/.exec(v) || /^"(.*)"$/.exec(v);
+          return m ? m[1] : v;
+        }
+        function ad(t) { return t.type === 'word' || t.type === 'ident' || t.type === 'var'; }
+        function nokta(t) { return t.type === 'punc' && t.value === '.'; }
+        function esit(a, b, duyarli) {
+          return duyarli ? a === b : a.toLowerCase() === b.toLowerCase();
+        }
+
+        /** i konumundan başlayan token dizisi 'parcalar' ile eşleşiyorsa son indeksi döndürür */
+        function dizyEsle(toks, i, parcalar, duyarli) {
+          var j = i;
+          for (var k = 0; k < parcalar.length; k++) {
+            if (k > 0) {
+              if (!toks[j] || !nokta(toks[j])) return -1;
+              j++;
+            }
+            if (!toks[j] || !ad(toks[j])) return -1;
+            if (!esit(ciplak(toks[j].value), parcalar[k], duyarli)) return -1;
+            j++;
+          }
+          return j - 1;
+        }
+
+        function calistir() {
+          var eski = $('tRFrom').value.trim();
+          var yeni = $('tRTo').value;
+          if (!eski) { Sh.flash('Eski adı yazın.'); return; }
+          var sql = Sh.girdi();
+          if (!sql) return;
+          var duyarli = $('tRCase').checked;
+          var yorumDa = $('tRComment').checked;
+          var parcalar = eski.split('.').map(function (x) { return ciplak(x.trim()); })
+            .filter(function (x) { return x.length; });
+          if (!parcalar.length) return;
+
+          var toks = SQL.Lex.tokenize(sql).tokens;
+          var out = '', pos = 0;
+          sayi = 0;
+
+          for (var i = 0; i < toks.length; i++) {
+            var t = toks[i];
+
+            if (t.type === 'comment') {
+              if (!yorumDa) continue;
+              var re = new RegExp(eski.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                                  duyarli ? 'g' : 'gi');
+              if (!re.test(t.value)) continue;
+              out += sql.slice(pos, t.start) + t.value.replace(re, yeni);
+              pos = t.end; sayi++;
+              continue;
+            }
+
+            if (!ad(t)) continue;
+
+            var son = dizyEsle(toks, i, parcalar, duyarli);
+            if (son < 0) continue;
+
+            /* Nitelikli adın parçası olan daha uzun bir zinciri bölme:
+               a.b ararken x.a.b içindeki a.b atlanır. */
+            if (i > 0 && nokta(toks[i - 1])) continue;
+
+            var metin = yeni;
+            if (parcalar.length === 1) {
+              /* Tek parçalı adda özgün tırnak biçimi korunur */
+              if (/^\[/.test(t.value)) metin = '[' + yeni + ']';
+              else if (/^"/.test(t.value)) metin = '"' + yeni + '"';
+            }
+
+            out += sql.slice(pos, t.start) + metin;
+            pos = toks[son].end;
+            sayi++;
+            i = son;
+          }
+          out += sql.slice(pos);
+
+          sonuc = out;
+          $('tROut').textContent = out;
+          $('tRSum').textContent = sayi
+            ? sayi + ' yerde değiştirildi.'
+            : '“' + eski + '” bulunamadı.';
+        }
+        $('tRRun').addEventListener('click', calistir);
+        $('tRFrom').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); calistir(); }
+        });
+        $('tRTo').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') { e.preventDefault(); calistir(); }
+        });
+        $('tRApply').addEventListener('click', function () {
+          if (!sonuc || !sayi) { Sh.flash('Önce önizleyin.'); return; }
+          Sh.girdiyeYaz(sonuc);
+          Sh.katmanKapat();
+          Sh.flash(sayi + ' yerde değiştirildi.');
+        });
+      }
+    },
+
+    /* ---------- Dışa aktarma ---------- */
+    export: {
+      html:
+        '<div class="tool-panel">' +
+        '  <p class="hintline">Föyü başka bir belgeye yapıştırmak için hazırlar.</p>' +
+        '  <div class="row">' +
+        '    <span class="lbl">Biçim</span>' +
+        '    <select id="tEFmt" style="flex:0 0 auto">' +
+        '      <option value="md">Markdown (```sql)</option>' +
+        '      <option value="html">Renkli HTML (Word/e-posta)</option>' +
+        '      <option value="txt">Düz metin</option>' +
+        '    </select>' +
+        '    <button class="btn primary" id="tECopy">Kopyala</button>' +
+        '    <button class="btn" id="tEDownload">Dosya indir</button>' +
+        '  </div>' +
+        '  <div class="out-box" id="tEOut"></div>' +
+        '</div>',
+      init: function () {
+        /* Renkli HTML: satır içi stil, dış kaynak yok */
+        var RENK = {
+          k: '#25506B', s: '#4A6B2A', n: '#8A5A11', c: '#8B9099',
+          i: '#3E4C59', f: '#6A3E8E', v: '#A32B21'
+        };
+        function html(sql) {
+          var boyali = SQL.Paint.paint(sql);
+          var govde = boyali.replace(/<span class="([a-z])">/g, function (m, c) {
+            return '<span style="color:' + (RENK[c] || '#171C22') +
+                   (c === 'k' ? ';font-weight:600' : '') +
+                   (c === 'c' ? ';font-style:italic' : '') + '">';
+          });
+          return '<pre style="font-family:Consolas,monospace;font-size:12.5px;' +
+                 'line-height:1.55;background:#F7F7F3;color:#171C22;padding:12px 14px;' +
+                 'border:1px solid #C3C6BC;border-radius:2px;white-space:pre;' +
+                 'overflow-x:auto">' + govde + '</pre>';
+        }
+        function uret() {
+          var sql = Sh.cikti() || Sh.girdi();
+          var f = $('tEFmt').value;
+          if (!sql) return '';
+          if (f === 'md') return '```sql\n' + sql + '\n```';
+          if (f === 'html') return html(sql);
+          return sql;
+        }
+        function hesapla() {
+          var t = uret();
+          $('tEOut').textContent = t;
+        }
+        $('tEFmt').addEventListener('change', hesapla);
+        $('tECopy').addEventListener('click', function () {
+          var f = $('tEFmt').value, t = uret();
+          if (f === 'html' && navigator.clipboard && window.ClipboardItem) {
+            /* Biçimli yapıştırma için hem HTML hem düz metin konur */
+            navigator.clipboard.write([new ClipboardItem({
+              'text/html': new Blob([t], { type: 'text/html' }),
+              'text/plain': new Blob([Sh.cikti() || Sh.girdi()], { type: 'text/plain' })
+            })]).then(function () { Sh.flash('Renkli hâliyle kopyalandı.'); },
+                      function () { panoyaYaz(t, 'HTML'); });
+            return;
+          }
+          panoyaYaz(t, 'Çıktı');
+        });
+        $('tEDownload').addEventListener('click', function () {
+          var f = $('tEFmt').value, t = uret();
+          if (!t) return;
+          var uzanti = f === 'md' ? '.md' : f === 'html' ? '.html' : '.txt';
+          var tip = f === 'html' ? 'text/html' : 'text/plain';
+          var sekme = Sh.aktifSekme();
+          var ad = ((sekme && sekme.ad) || 'sorgu')
+            .replace(/[^\wçğıöşüÇĞİÖŞÜ .-]+/g, '_') + uzanti;
+          var blob = new Blob([t], { type: tip + ';charset=utf-8' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = ad;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+          Sh.flash(ad + ' indirildi.');
+        });
+        PANELLER.export.tazele = hesapla;
+        hesapla();
+      }
+    }
+  };
+
+  /* ============================================================
+     Sekme yönetimi
+     ============================================================ */
+
+  var kurulan = {};
+
+  function aracGoster(ad) {
+    aktifArac = ad;
+    $$('#toolTabs button').forEach(function (b) {
+      b.setAttribute('aria-selected', b.getAttribute('data-tool') === ad ? 'true' : 'false');
+    });
+    var kutu = $('toolPanels');
+    kutu.innerHTML = PANELLER[ad].html;
+    /* Paneller her açılışta yeniden kurulur; olay bağları da yenilenir */
+    PANELLER[ad].init();
+    kurulan[ad] = true;
+  }
+
+  $$('#toolTabs button').forEach(function (b) {
+    b.addEventListener('click', function () { aracGoster(b.getAttribute('data-tool')); });
+  });
+
+  document.addEventListener('katman:ac', function (e) {
+    if (e.detail !== 'drawerTools') return;
+    aracGoster(aktifArac);
+    /* Diff aracı açılırken iki tarafı da doldur */
+    if (aktifArac === 'diff') {
+      $('tDA').value = Sh.girdi();
+      $('tDB').value = Sh.cikti();
+    }
+  });
+
+  App.Tools = { goster: aracGoster };
+})(window.App, window.SQL);
+</script>
+
+</body>
+</html>

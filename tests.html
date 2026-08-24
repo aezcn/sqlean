@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQL Föy — Motor Testleri</title>
+<style>
+  :root{--ok:#2E7D32;--bad:#C62828;--rule:#D6D8D0;--ink:#171C22;--soft:#5C6570}
+  body{font:14px system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:20px;
+       background:#F3F4EF;color:var(--ink)}
+  h1{font-size:15px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 4px}
+  .sum{font-family:ui-monospace,Consolas,monospace;font-size:13px;margin:10px 0 18px;
+       padding:10px 12px;border:1px solid var(--rule);background:#fff;border-radius:2px}
+  .sum.ok{border-left:4px solid var(--ok)}
+  .sum.bad{border-left:4px solid var(--bad)}
+  .grp{margin-bottom:8px;border:1px solid var(--rule);background:#fff;border-radius:2px}
+  .grp > summary{cursor:pointer;padding:7px 11px;font-weight:600;font-size:13px}
+  .grp.pass > summary{color:var(--ok)}
+  .grp.fail > summary{color:var(--bad)}
+  .case{border-top:1px solid #EEF0EA;padding:8px 11px}
+  .case .nm{font-size:12px;color:var(--soft);margin-bottom:6px}
+  .case.fail .nm{color:var(--bad);font-weight:600}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  pre{margin:0;font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.5;
+      background:#F7F7F3;border:1px solid var(--rule);padding:7px 9px;border-radius:2px;
+      white-space:pre-wrap;overflow-x:auto}
+  pre b{background:#FBE3E1;font-weight:400}
+  .lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--soft);
+       margin-bottom:3px}
+  .hint{font-size:12px;color:var(--soft)}
+  code{font-family:ui-monospace,Consolas,monospace;background:#E8E9E3;padding:1px 4px;
+       border-radius:2px}
+</style>
+</head>
+<body>
+<h1>SQL Föy — Motor Testleri</h1>
+<p class="hint">
+  <code>index.html</code> gizli bir iframe içinde yüklenir; motor
+  <code>iframe.contentWindow.SQL</code> üzerinden çağrılır. Kod kopyalanmaz,
+  <code>eval</code> kullanılmaz.
+</p>
+<div class="sum" id="sum">Yükleniyor…</div>
+<div id="out"></div>
+
+<iframe id="app" src="index.html" style="display:none" title="uygulama"></iframe>
+<script src="tests/cases.js"></script>
+<script>
+(function () {
+  'use strict';
+  var sum = document.getElementById('sum');
+  var out = document.getElementById('out');
+  var frame = document.getElementById('app');
+
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /* İlk farklı satırı işaretle */
+  function diffMark(text, other) {
+    var a = String(text).split('\n'), b = String(other).split('\n');
+    return a.map(function (l, i) {
+      return (b[i] === l) ? esc(l) : '<b>' + esc(l || '␀') + '</b>';
+    }).join('\n');
+  }
+
+  function run(SQL) {
+    var results = [], pass = 0, fail = 0;
+
+    CASES.forEach(function (c) {
+      var checks = [];
+
+      /* 1. Beklenen çıktı */
+      var got;
+      try {
+        got = SQL.Print.format(c.sql, c.opt || {});
+      } catch (e) {
+        checks.push({ ad: 'biçimlendirme', ok: false, err: e.message + '\n' + e.stack });
+        got = null;
+      }
+
+      if (got !== null && c.bekle !== undefined) {
+        checks.push({
+          ad: 'beklenen çıktı', ok: got === c.bekle,
+          got: got, want: c.bekle
+        });
+      }
+
+      /* 2. Değişmezlik: format(format(x)) === format(x) */
+      if (got !== null) {
+        try {
+          var twice = SQL.Print.format(got, c.opt || {});
+          checks.push({
+            ad: 'değişmezlik', ok: twice === got,
+            got: twice, want: got
+          });
+        } catch (e) {
+          checks.push({ ad: 'değişmezlik', ok: false, err: e.message });
+        }
+      }
+
+      /* 3. Bozulmama: minify(format(x)) === minify(x) */
+      var atla = c.atla || [];
+      if (got !== null && c.sql.trim() && atla.indexOf('bozulmama') < 0) {
+        try {
+          var m1 = SQL.Print.minify(c.sql);
+          var m2 = SQL.Print.minify(got);
+          checks.push({ ad: 'bozulmama', ok: m1 === m2, got: m2, want: m1 });
+        } catch (e) {
+          checks.push({ ad: 'bozulmama', ok: false, err: e.message });
+        }
+      }
+
+      /* 4. Tüm seçenek setleri hata atmamalı ve kararlı olmalı */
+      OPT_SETS.forEach(function (os) {
+        try {
+          var r1 = SQL.Print.format(c.sql, os.opt);
+          var r2 = SQL.Print.format(r1, os.opt);
+          if (r1 !== r2) {
+            checks.push({ ad: 'kararlılık · ' + os.ad, ok: false, got: r2, want: r1 });
+          }
+        } catch (e) {
+          checks.push({ ad: 'seçenek · ' + os.ad, ok: false, err: e.message + '\n' + e.stack });
+        }
+      });
+
+      var bad = checks.filter(function (x) { return !x.ok; });
+      if (bad.length) fail++; else pass++;
+      results.push({ c: c, checks: checks, ok: !bad.length });
+    });
+
+    /* Rapor */
+    sum.className = 'sum ' + (fail ? 'bad' : 'ok');
+    sum.textContent = pass + ' geçti · ' + fail + ' kaldı · toplam ' + CASES.length + ' vaka';
+
+    results.forEach(function (r) {
+      var d = document.createElement('details');
+      d.className = 'grp ' + (r.ok ? 'pass' : 'fail');
+      d.open = !r.ok;
+      var s = document.createElement('summary');
+      s.textContent = (r.ok ? '✓ ' : '✗ ') + r.c.ad;
+      d.appendChild(s);
+
+      r.checks.forEach(function (ch) {
+        if (ch.ok) return;
+        var div = document.createElement('div');
+        div.className = 'case fail';
+        var html = '<div class="nm">' + esc(ch.ad) + '</div>';
+        if (ch.err) {
+          html += '<pre>' + esc(ch.err) + '</pre>';
+        } else {
+          html += '<div class="cols">' +
+            '<div><div class="lbl">alınan</div><pre>' + diffMark(ch.got, ch.want) + '</pre></div>' +
+            '<div><div class="lbl">beklenen</div><pre>' + diffMark(ch.want, ch.got) + '</pre></div>' +
+            '</div>';
+        }
+        html += '<div class="lbl" style="margin-top:6px">girdi</div><pre>' + esc(r.c.sql) + '</pre>';
+        div.innerHTML = html;
+        d.appendChild(div);
+      });
+
+      out.appendChild(d);
+    });
+
+    window.__RESULT__ = { pass: pass, fail: fail, total: CASES.length,
+      failures: results.filter(function (r) { return !r.ok; }).map(function (r) {
+        return {
+          ad: r.c.ad,
+          sorunlar: r.checks.filter(function (x) { return !x.ok; }).map(function (x) {
+            return { kontrol: x.ad, hata: x.err || null, alinan: x.got, beklenen: x.want };
+          })
+        };
+      })
+    };
+    window.__DONE__ = true;
+  }
+
+  frame.addEventListener('load', function () {
+    setTimeout(function () {
+      var SQL = frame.contentWindow.SQL;
+      if (!SQL || !SQL.Print) {
+        sum.className = 'sum bad';
+        sum.textContent = 'Motor yüklenemedi — index.html içindeki script hatalarına bakın.';
+        window.__DONE__ = true;
+        window.__RESULT__ = { pass: 0, fail: -1, error: 'SQL yok' };
+        return;
+      }
+      try { run(SQL); }
+      catch (e) {
+        sum.className = 'sum bad';
+        sum.textContent = 'Koşucu hatası: ' + e.message;
+        window.__DONE__ = true;
+        window.__RESULT__ = { error: e.message + '\n' + e.stack };
+      }
+    }, 60);
+  });
+})();
+</script>
+</body>
+</html>

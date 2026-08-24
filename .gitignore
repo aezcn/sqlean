@@ -1,0 +1,11 @@
+# Eski sürüm — referans olarak tutuluyor, repoya girmiyor
+sql-foy (1).html
+
+# Editör / işletim sistemi
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Yerel geliştirme
+.claude/
