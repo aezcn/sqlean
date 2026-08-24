@@ -3045,8 +3045,12 @@ window.App = window.App || {};
 
   App.Store = {
     get: get, set: set, del: del,
-    /* Klasöre yazma yalnızca güvenli bağlamda (https / localhost) çalışır */
-    hasFS: !!(window.showDirectoryPicker && window.isSecureContext)
+    /* Klasöre yazma yalnızca https / localhost üzerinden çalışır.
+       file:// açılışında Chrome isSecureContext'i true döndürür ama
+       showDirectoryPicker() SecurityError atar — protokolü ayrıca kontrol
+       ediyoruz ki kullanılamayan bir düğme gösterilmesin. */
+    hasFS: !!(window.showDirectoryPicker && window.isSecureContext &&
+              location.protocol !== 'file:')
   };
 })(window.App);
 </script>
