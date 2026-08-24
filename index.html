@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="T-SQL sorgu biçimlendirici. Tamamen tarayıcıda çalışır, hiçbir veri dışarı çıkmaz.">
-<title>SQL Föy — T-SQL Sorgu Biçimlendirici</title>
+<title>Sqlean — T-SQL Sorgu Biçimlendirici</title>
 <style>
 /* ============================================================
    TASARIM TOKENLARI
@@ -437,6 +437,10 @@ mark.hit.on{background:var(--stamp);color:#fff}
 @media (max-width:1100px){
   .side{flex-basis:260px}
 }
+/* Dar ekranda gizlilik damgası daralsın — başlık satırını daha az bölsün */
+@media (max-width:760px){
+  .stamp{letter-spacing:.05em;padding:2px 6px;font-size:9px}
+}
 @media (max-width:860px){
   .panes{flex-direction:column}
   .pane + .pane{border-left:0;border-top:1px solid var(--rule)}
@@ -459,10 +463,10 @@ mark.hit.on{background:var(--stamp);color:#fff}
 
 <header>
   <div class="brand">
-    <h1>SQL Föy</h1>
+    <h1>Sqlean</h1>
     <span class="sub">T-SQL Sorgu Biçimlendirici</span>
     <span class="grow"></span>
-    <span class="stamp" id="modeStamp" title="Depolama kipi">yerel</span>
+    <span class="stamp" title="Tüm işlem tarayıcınızda yapılır; uygulama hiçbir ağ isteği göndermez.">sorgular bilgisayardan çıkmaz</span>
     <button class="icon-btn" id="btnHelp" title="Kısayollar (Ctrl+/)" aria-label="Kısayollar">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.8 2.8 0 1 1 3.5 2.7c-.6.2-.9.7-.9 1.3v.4"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>
     </button>
@@ -602,7 +606,7 @@ mark.hit.on{background:var(--stamp);color:#fff}
 
   <section class="pane" id="paneOut" aria-label="Çıktı">
     <div class="pane-head">
-      <span>Föy</span>
+      <span>Çıktı</span>
       <button class="mini" id="btnSwap" title="Çıktıyı girdiye taşı">↰ Girdiye al</button>
       <span class="count" id="outCount">0 satır</span>
     </div>
@@ -2559,7 +2563,7 @@ window.SQL = window.SQL || {};
 <!-- ============================================================
      KATMAN 4 — SQL.Analyze : ÖLÇÜM, ANA HAT, RİSK UYARILARI
      Biçimlendirilmiş metnin ağacı üzerinde yürür; bu sayede
-     ürettiği satır numaraları föy panosundakiyle birebir eşleşir.
+     ürettiği satır numaraları çıktı panosundakiyle birebir eşleşir.
      ============================================================ -->
 <script>
 (function (SQL) {
@@ -2966,6 +2970,9 @@ window.App = window.App || {};
 (function (App) {
   'use strict';
 
+  /* Anahtarlar uygulama yeniden adlandırıldığında da değiştirilmedi:
+     değiştirilseydi kullanıcıların mevcut taslakları ve kütüphaneleri
+     erişilemez hâle gelirdi. */
   var DB = 'sql-foy', STORE = 'kv', LS = 'sqlfoy:';
   var dbp = null, useIdb = true;
 
@@ -3365,7 +3372,7 @@ window.App = window.App || {};
     });
   }
 
-  /** Föy panosunda ilgili satıra kaydırır ve cetvelde işaretler */
+  /** Çıktı panosunda ilgili satıra kaydırır ve cetvelde işaretler */
   function gotoLine(n) {
     if (!n) return;
     var lh = parseFloat(getComputedStyle(output).lineHeight) || 20;
@@ -3657,7 +3664,7 @@ window.App = window.App || {};
     if (!text) { flash('Kopyalanacak bir şey yok.'); return; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(
-        function () { flash('Föy panoya kopyalandı.'); },
+        function () { flash('Çıktı panoya kopyalandı.'); },
         function () { kopyalaYedek(text); });
     } else kopyalaYedek(text);
   }
@@ -3667,7 +3674,7 @@ window.App = window.App || {};
     ta.value = text;
     ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select();
-    try { document.execCommand('copy'); flash('Föy panoya kopyalandı.'); }
+    try { document.execCommand('copy'); flash('Çıktı panoya kopyalandı.'); }
     catch (e) { flash('Kopyalanamadı — metni elle seçin.'); }
     document.body.removeChild(ta);
   }
@@ -3690,7 +3697,7 @@ window.App = window.App || {};
     if (!S.sonCikti) return;
     input.value = S.sonCikti;
     calistir();
-    flash('Föy girdiye taşındı.');
+    flash('Çıktı girdiye taşındı.');
   }
 
   function temizle() {
@@ -4264,7 +4271,6 @@ window.App = window.App || {};
       $('libFsStatus').textContent =
         'Bu tarayıcı/açılış biçiminde klasöre yazma kullanılamıyor. Kayıtlar tarayıcıda ' +
         'tutuluyor; taşımak için JSON dışa aktarımını kullanın.';
-      $('modeStamp').textContent = 'yerel';
       return;
     }
     $('libConnect').hidden = !!L.handle;
@@ -4273,9 +4279,6 @@ window.App = window.App || {};
       ? 'Bağlı klasör: ' + L.klasor + ' — her sorgu ayrı .sql dosyası olarak yazılıyor.'
       : 'Bağlı değil — kayıtlar tarayıcıda tutuluyor. Klasöre bağlanırsanız gerçek .sql ' +
         'dosyaları oluşur.';
-    $('modeStamp').textContent = L.handle ? 'klasör' : 'yerel';
-    $('modeStamp').title = L.handle ? 'Kayıtlar “' + L.klasor + '” klasörüne yazılıyor'
-                                    : 'Kayıtlar tarayıcı belleğinde';
   }
 
   function etiketBulutu() {
@@ -4403,7 +4406,7 @@ window.App = window.App || {};
     var blob = new Blob([JSON.stringify(veri, null, 2)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'sql-foy-kutuphane.json';
+    a.download = 'sqlean-kutuphane.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
     Sh.flash(L.items.length + ' kayıt indirildi.');
@@ -4764,7 +4767,7 @@ window.App = window.App || {};
         '    <textarea id="tDB"></textarea></div>' +
         '  <div class="row">' +
         '    <button class="btn" id="tDFromInput">A ← girdi</button>' +
-        '    <button class="btn" id="tDFromOutput">B ← föy</button>' +
+        '    <button class="btn" id="tDFromOutput">B ← çıktı</button>' +
         '    <button class="btn primary" id="tDRun">Karşılaştır</button>' +
         '    <label class="chk"><input type="checkbox" id="tDSame"> Aynı satırları göster</label>' +
         '  </div>' +
@@ -4831,7 +4834,7 @@ window.App = window.App || {};
     code: {
       html:
         '<div class="tool-panel">' +
-        '  <p class="hintline">Föydeki sorguyu seçtiğiniz dile gömülecek biçimde kaçırır.</p>' +
+        '  <p class="hintline">Çıktıdaki sorguyu seçtiğiniz dile gömülecek biçimde kaçırır.</p>' +
         '  <div class="row">' +
         '    <span class="lbl">Dil</span>' +
         '    <select id="tCLang" style="flex:0 0 auto">' +
@@ -4843,7 +4846,7 @@ window.App = window.App || {};
         '    </select>' +
         '    <label class="chk">Değişken ' +
         '      <input type="text" id="tCVar" value="sql" style="width:96px"></label>' +
-        '    <label class="chk"><input type="checkbox" id="tCFromOut" checked> Föyü kullan</label>' +
+        '    <label class="chk"><input type="checkbox" id="tCFromOut" checked> Çıktıyı kullan</label>' +
         '  </div>' +
         '  <div class="out-box" id="tCOut"></div>' +
         '  <div class="row"><button class="btn primary" id="tCCopy">Kopyala</button></div>' +
@@ -5097,7 +5100,7 @@ window.App = window.App || {};
     export: {
       html:
         '<div class="tool-panel">' +
-        '  <p class="hintline">Föyü başka bir belgeye yapıştırmak için hazırlar.</p>' +
+        '  <p class="hintline">Çıktıyı başka bir belgeye yapıştırmak için hazırlar.</p>' +
         '  <div class="row">' +
         '    <span class="lbl">Biçim</span>' +
         '    <select id="tEFmt" style="flex:0 0 auto">' +

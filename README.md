@@ -1,4 +1,4 @@
-# SQL Föy
+# Sqlean
 
 **T-SQL sorgu biçimlendirici — tek dosya, kurulum yok, veri dışarı çıkmaz.**
 
@@ -6,8 +6,8 @@ Tek bir `index.html` dosyasından ibaret. Derleme adımı, bağımlılık, sunuc
 gerektirmez. Sorgularınız hiçbir zaman tarayıcınızdan çıkmaz — uygulama **sıfır ağ
 isteği** yapar; DevTools → Network sekmesinden doğrulayabilirsiniz.
 
-> **Canlı sürüm:** https://aezcn.github.io/sql-foy/
-> **Testler:** https://aezcn.github.io/sql-foy/tests.html
+> **Canlı sürüm:** https://aezcn.github.io/sqlean/
+> **Testler:** https://aezcn.github.io/sqlean/tests.html
 
 ---
 
@@ -105,8 +105,8 @@ komut paleti.
 Derleme adımı yok. Depoyu klonlayın, `index.html` dosyasını düzenleyin, tarayıcıda açın.
 
 ```bash
-git clone https://github.com/aezcn/sql-foy.git
-cd sql-foy
+git clone https://github.com/aezcn/sqlean.git
+cd sqlean
 python3 -m http.server 8000
 ```
 
@@ -165,7 +165,7 @@ The whole application is one `index.html`. No build step, no dependencies, no se
 no account. It makes **zero network requests** — verify it in DevTools → Network.
 
 Built for locked-down work machines where you cannot install anything: open the
-[live version](https://aezcn.github.io/sql-foy/), or download the file and
+[live version](https://aezcn.github.io/sqlean/), or download the file and
 double-click it.
 
 **Features.** A from-scratch tokenizer → parser → printer engine (CTEs, subqueries,
