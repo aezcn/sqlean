@@ -163,15 +163,28 @@ bir nesne ekleyin.
 ### Dosya yapısı
 
 ```
-index.html      Uygulamanın tamamı — çalışması için gereken tek dosya
-tests.html      Tarayıcıda çalışan test koşucusu
-tests/cases.js  Test fixture'ları
-examples/       Örnek sorgular
+index.html             Uygulamanın tamamı — çalışması için gereken tek dosya
+tests.html             Tarayıcıda çalışan test koşucusu
+tests/cases.js         Test fixture'ları
+examples/              Örnek sorgular
+docs/kurulum-plani.md  Sıfırdan kurulum şartnamesi
 ```
 
 `index.html` içi bannerlı bölümlere ayrılmıştır: `SQL.Lex` (tokenizer),
 `SQL.Parse` (düğüm ağacı), `SQL.Print` (yazıcı), `SQL.Analyze` (analiz),
-`SQL.Paint` (renklendirme), `App.Store`, `App.Shell`, `App.Library`, `App.Tools`.
+`SQL.Graph` (ilişki çıkarımı), `SQL.Paint` (renklendirme), `App.Store`,
+`App.Shell`, `App.Library`, `App.Tools`, `App.Viz` (şema).
+
+### Sıfırdan kurmak isteyenler için
+
+[`docs/kurulum-plani.md`](docs/kurulum-plani.md) projeyi baştan inşa etmek için
+yazılmış bir şartnamedir: katman katman sorumluluklar, yapım sırası, test
+değişmezleri ve kabul ölçütleri.
+
+Belgenin asıl değeri **§4 Tuzaklar** bölümündedir — 19 maddenin her biri, bu
+proje yazılırken gerçekten yapılmış ve bir testle yakalanmış bir hatadır
+(tokenizer'da fonksiyon/tablo ayrımı, kaybolan noktalı virgül, satır yorumunun
+kolonu yutması, çizge kenarlarının yanlış tabloya bağlanması gibi).
 
 ---
 
@@ -213,6 +226,11 @@ order. A library that writes saved queries as real `.sql` files to a folder on d
 and open `localhost:8000`. Tests live in `tests.html`; every fixture is checked for
 expected output, idempotence (`format∘format = format`) and non-destruction
 (`minify∘format = minify`) across 16 option combinations.
+
+**Rebuilding from scratch.** [`docs/kurulum-plani.md`](docs/kurulum-plani.md) (Turkish)
+is a full build specification: layer responsibilities, build order, test invariants and
+acceptance criteria. Its most useful part is §4 — nineteen pitfalls, each one a mistake
+actually made while writing this project and caught by a test.
 
 **Limits.** T-SQL only. The parser is deliberately loose — unrecognized constructs pass
 through untouched rather than crashing. Writing to a disk folder requires a secure
